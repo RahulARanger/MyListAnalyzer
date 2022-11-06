@@ -5,7 +5,7 @@ from MyListAnalyzerAPI import __version__
 here = pathlib.Path(__file__).parent
 req = here / "requirements.txt"
 setup(
-    name="MyListAnalyzerDash",
+    name="MyListAnalyzerAPI",
     version=__version__,
     description="API for MyAnimeListAnalyzer Dash",
     url="https://github.com/RahulARanger/MyListAnalyzer",
