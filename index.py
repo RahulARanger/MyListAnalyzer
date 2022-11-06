@@ -1,24 +1,25 @@
-from fastapi import FastAPI
-from MyListAnalyzerAPI.routes import application_router
-import uvicorn
-from fastapi.middleware.cors import CORSMiddleware
+from sanic import Sanic
+from sanic.response import text
+from sanic_ext import Extend
+from MyListAnalyzerAPI.routes import my_list_analyzer
 
-app = FastAPI(description="Hey There")
+app = Sanic(__name__)
+Extend(app)
 
 origins = [
     "http://127.0.0.1:6969"
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-app.include_router(application_router)
+app.config.CORS_ORIGINS = ";".join(origins)
+app.config.CORS_ALLOW_HEADERS = ["*"]
+
+app.blueprint(my_list_analyzer)
+
+
+@app.get("/MLA", name="Entry for MLA API")
+async def greet(_):
+    return text("Hello There, Welcome to MLA API")
 
 
 if __name__ == "__main__":
-    uvicorn.run("index:app", port=6966, log_level="info", reload=True)
-
+    app.run(host="127.0.0.1", port=6966, debug=True, auto_reload=True)
