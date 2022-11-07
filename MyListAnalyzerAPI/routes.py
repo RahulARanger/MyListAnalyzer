@@ -1,10 +1,12 @@
-from sanic.blueprint_group import BlueprintGroup
-from MyListAnalyzerAPI.user_details import blue_print as user_details
+from MyListAnalyzerAPI.user_details import parse_user_details, HandleProcessUserDetails
+from starlette.middleware import Middleware
+from starlette.routing import Mount, Route
 
 
-my_list_analyzer = BlueprintGroup(url_prefix="/MLA")
-my_list_analyzer.append(user_details)
+mount_route = Mount(path="/user_details", name="user_details", routes=[
+    Route("/process/", parse_user_details, methods=["POST"])
+], middleware=[Middleware(HandleProcessUserDetails)])
 
-
-
-
+my_list_analyzer = Mount(path="/MLA", routes=[
+    mount_route
+])

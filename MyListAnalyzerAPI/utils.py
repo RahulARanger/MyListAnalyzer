@@ -49,10 +49,19 @@ class DataDrip:
 
     @classmethod
     def from_api(cls, raw: list, fix=False):
-        raw = DataDrip(pandas.json_normalize(raw, sep=DataDrip.sep))  # its default but to note
+        raw = DataDrip(
+            pandas.json_normalize(raw, sep=DataDrip.sep)
+        )  # its default but to note
+
+        raw.source.dropna(
+            subset=[
+                raw["node", "id"]
+            ], inplace=True
+        )  # if any
 
         raw.source.set_index(raw["node", "id"])
         raw.purify() if fix else ...
+
         return raw
 
     @classmethod

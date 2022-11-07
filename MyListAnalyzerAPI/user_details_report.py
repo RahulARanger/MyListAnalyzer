@@ -1,7 +1,6 @@
 import pandas
 import typing
 from MyListAnalyzerAPI.utils import DataDrip
-from math import ceil
 
 
 def list_status(drip: DataDrip):

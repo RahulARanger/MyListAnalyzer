@@ -1,42 +1,50 @@
 import logging
-from sanic import Blueprint
-from sanic.request import Request
-from sanic.response import json
-from sanic_ext import validate
-from sanic.exceptions import SanicException
+import pprint
+
 from MyListAnalyzerAPI.modals import ProcessUserDetails
 from MyListAnalyzerAPI.user_details_report import report_gen as general_report
 from MyListAnalyzerAPI.utils import DataDrip
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import JSONResponse, Response, PlainTextResponse
+from starlette.requests import Request
+import typing
 
-blue_print = Blueprint("report-generation-for-user-details", url_prefix="/user_details")
+
+class HandleProcessUserDetails(BaseHTTPMiddleware):
+    async def dispatch(
+            self, request: Request, call_next: RequestResponseEndpoint
+    ) -> typing.Union[JSONResponse, Response, PlainTextResponse]:
+
+        logging.info("Requested to process User Details for: %s", request.url)
+
+        try:
+            response = await call_next(request)
+            return response
+
+        except Exception as error:
+            logging.exception("Failed to process User Details for the %s", request.url, exc_info=True)
+
+            # TODO:  Conduct some tests to provide the exact reason
+
+            return PlainTextResponse(content=repr(error), status_code=406)
+
 
 ROUTES = [general_report, False]
 
 
-# @validate(json={})
-# async def check_for_drip(request: Request):
-#     ...
+async def parse_user_details(request: Request):
+    body = ProcessUserDetails(**await request.json())
 
-
-@blue_print.post("/process/")
-@validate(json=ProcessUserDetails)
-async def parse_user_details(_, body: ProcessUserDetails):
     is_raw = isinstance(body.data, list)
-    try:
-        drip = DataDrip.from_api(body.data, True) if is_raw else DataDrip.from_raw(body.data)
+    drip = DataDrip.from_api(body.data, True) if is_raw else DataDrip.from_raw(body.data)
 
-        content = {"meta": ROUTES[body.tab](drip)}
+    content = {"meta": ROUTES[body.tab](drip)}
 
-        if is_raw:
-            content["drip"] = drip()
+    if is_raw:
+        content["drip"] = drip()
 
-        return json(
-            body=content,
-            status=200
-        )
+    pprint.pprint(content, indent=4)
 
-    except Exception as error:
-        raise SanicException(
-            f"Failed to process User Details: {repr(error)}",
-            status_code=406, quiet=False
-        )
+    return JSONResponse(
+        content=content
+    )

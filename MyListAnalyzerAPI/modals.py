@@ -20,3 +20,4 @@ class ProcessUserDetails:
         node_details_and_list_status
     ]
     tab: typing.Optional[int] = 0
+
