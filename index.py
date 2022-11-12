@@ -20,7 +20,7 @@ origins = [
 
 app = Starlette(debug=True, routes=[main_route, my_list_analyzer], middleware=[
     Middleware(
-        CORSMiddleware, allow_origins=origins
+        CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"], allow_credentials=True
     )
 ])
 

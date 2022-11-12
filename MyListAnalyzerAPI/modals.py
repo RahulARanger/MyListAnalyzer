@@ -1,7 +1,5 @@
 import typing
 from dataclasses import dataclass
-
-
 studios_or_genres = typing.List[typing.Dict[str, typing.Union[int, str]]]
 list_status_or_broadcast_or_picture = typing.Dict[str, str]
 season = typing.Dict[str, typing.Union[int, str]]
@@ -19,5 +17,4 @@ class ProcessUserDetails:
     data: typing.List[
         node_details_and_list_status
     ]
-    tab: typing.Optional[int] = 0
-
+    timezone: typing.Optional[str] = "Asia/Tokyo"
