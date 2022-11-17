@@ -18,3 +18,10 @@ class ProcessUserDetails:
         node_details_and_list_status
     ]
     timezone: typing.Optional[str] = "Asia/Tokyo"
+
+
+ep_range_bin = [
+    12, 24, 100, 200, 500
+]
+# bin[i - 1] <= x < bin[i] implies that x is in bin [i]
+# examples 12 is in second bin, 24 is also on second bin

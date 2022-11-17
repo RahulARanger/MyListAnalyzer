@@ -76,4 +76,3 @@ class DataDrip:
 
     def __call__(self):
         return {"data": self.source.to_json(orient="columns"), "genres": self.genres, "studios": self.studios}
-
