@@ -30,7 +30,7 @@ def not_finished_airing(drip: DataDrip):
         currently_airing.loc[:, [name, pic, l_s]])
 
 
-def report_gen(drip: DataDrip, tz: str = "Asia/Japan"):
+async def report_gen(drip: DataDrip, tz: str = "Asia/Japan"):
     status = list_status(drip)
 
     ep_range = extract_ep_bins(drip)

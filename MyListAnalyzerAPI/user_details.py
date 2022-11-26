@@ -6,6 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse, Response, PlainTextResponse
 from starlette.requests import Request
 import typing
+import httpx
 
 
 class HandleProcessUserDetails(BaseHTTPMiddleware):
@@ -26,20 +27,33 @@ class HandleProcessUserDetails(BaseHTTPMiddleware):
             return PlainTextResponse(content=repr(error), status_code=406)
 
 
-ROUTES = [general_report, False]
+async def report_for_recent_animes(some_thing, timezone):
+    print(some_thing, "was passed")
+    return "tested"
+
+
+ROUTES = {
+    "Overview": general_report,
+    "Recently": report_for_recent_animes
+}
 
 
 async def parse_user_details(request: Request):
     tab_index = request.path_params["tab"]
 
-    key_tests(tab_index)
-
+    assert tab_index in ROUTES, "Tab Index doesn't exist in ROUTES"
     body = ProcessUserDetails(**await request.json())
 
-    is_raw = isinstance(body.data, list)
-    drip = DataDrip.from_api(body.data, True) if is_raw else DataDrip.from_raw(body.data)
+    print(body.data)
 
-    content = {"meta": ROUTES[tab_index](drip, body.timezone)}
+    is_raw = isinstance(body.data, list)
+    is_drip = any((is_raw, isinstance(body.data, dict)))
+
+    drip = DataDrip.from_api(
+        body.data, True) if is_raw else DataDrip.from_raw(
+        body.data) if is_drip else ""
+
+    content = {"meta": await ROUTES[tab_index](drip, body.timezone)}
 
     if is_raw:
         content["drip"] = drip()
@@ -47,7 +61,3 @@ async def parse_user_details(request: Request):
     return JSONResponse(
         content=content
     )
-
-
-def key_tests(tab_index):
-    assert tab_index < len(ROUTES), "please request for the index 0 to %s" % (len(ROUTES) - 1,)
