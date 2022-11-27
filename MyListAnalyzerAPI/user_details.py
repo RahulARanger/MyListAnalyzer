@@ -44,8 +44,6 @@ async def parse_user_details(request: Request):
     assert tab_index in ROUTES, "Tab Index doesn't exist in ROUTES"
     body = ProcessUserDetails(**await request.json())
 
-    print(body.data)
-
     is_raw = isinstance(body.data, list)
     is_drip = any((is_raw, isinstance(body.data, dict)))
 

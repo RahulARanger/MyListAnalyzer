@@ -49,15 +49,21 @@ async def report_gen(drip: DataDrip, tz: str = "Asia/Japan"):
         pandas.DataFrame(drip.source[drip.source[start_year] == current_year][[season]].groupby(season).value_counts())
     )
 
+    hrs_spent = float(drip.source[drip["list_status", "spent"]].sum())
+
     return {
         "row_1": {
             "values": [
                 int(drip.source.shape[0]),
-                float(drip.source[drip["list_status", "spent"]].sum()), int(status.loc["watching", 0]),
+                int(status.loc["watching", 0]),
                 not_yet_aired
             ],
-            "keys": ["Total Animes", "Time spent (hrs)", "Watching", "Not Yet Aired"]
+            "keys": ["Total Animes", "Watching", "Not Yet Aired"]
         },
+        "time_spent": [
+            [hrs_spent, "Time spent (hrs)"],
+            [hrs_spent / 24, "Time spent (days)"]
+        ],
         "row_2": status[status.index != "watching"].to_json(orient="split"),
         "row_3": [
             ep_range.to_json(orient="split"),
@@ -95,7 +101,7 @@ def extract_ep_bins(drip: DataDrip):
 
     ep_range = ep_range.groupby(ep).value_counts()
     ep_range["color"] = np.where(ep_range == ep_range.max(), "crimson", "lightslategray")
-    # it's not like I blindly copied those colors, its just i like. Suggest any colors if needed please.
+    # it's not like I blindly copied those colors, its just I like. Suggest any colors if needed please.
 
     # note above one doesn't add a column instead adds a row in the group-by variable
     # as it is not pandas dataframe
