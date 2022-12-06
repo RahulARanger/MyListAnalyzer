@@ -1,5 +1,6 @@
 import typing
 from dataclasses import dataclass
+
 studios_or_genres = typing.List[typing.Dict[str, typing.Union[int, str]]]
 list_status_or_broadcast_or_picture = typing.Dict[str, str]
 season = typing.Dict[str, typing.Union[int, str]]
@@ -11,13 +12,15 @@ node_details_and_list_status = typing.Dict[
     ]]
 ]
 
+default_time_zone = "Asia/Tokyo"
+
 
 @dataclass
 class ProcessUserDetails:
-    data: typing.List[
-        node_details_and_list_status
-    ]
-    timezone: typing.Optional[str] = "Asia/Tokyo"
+    data: typing.Optional[typing.Union[typing.List, typing.Dict]]
+    user_name: str
+    timezone: typing.Optional[str] = default_time_zone
+    need_to_parse_recent: bool = False
 
 
 ep_range_bin = [
@@ -25,3 +28,5 @@ ep_range_bin = [
 ]
 # bin[i - 1] <= x < bin[i] implies that x is in bin [i]
 # examples 12 is in second bin, 24 is also on second bin
+
+bw_json_frame = "values"

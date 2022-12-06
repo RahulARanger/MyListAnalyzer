@@ -67,7 +67,9 @@ class DataDrip:
     @classmethod
     def from_raw(cls, raw: dict):
         return DataDrip(
-            pandas.read_json(raw.get("data", ""), orient="columns"), raw.get("genres", None), raw.get("studios", None)
+            pandas.read_json(raw.get("data", ""), orient="columns"),
+            raw.get("genres", None),
+            raw.get("studios", None)
         )
 
     def __getitem__(self, key: typing.Union[str, typing.Sequence[str]]):
@@ -75,4 +77,8 @@ class DataDrip:
         return _key
 
     def __call__(self):
-        return {"data": self.source.to_json(orient="columns"), "genres": self.genres, "studios": self.studios}
+        return dict(
+            data=self.source.to_json(orient="columns"),
+            genres=self.genres,
+            studios=self.studios
+        )

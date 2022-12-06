@@ -5,6 +5,9 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from MyListAnalyzerAPI.routes import my_list_analyzer
 import uvicorn
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
 async def greet(_):

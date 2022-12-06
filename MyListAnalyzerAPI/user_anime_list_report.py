@@ -1,7 +1,7 @@
 import pandas
 import typing
 from MyListAnalyzerAPI.utils import DataDrip
-from MyListAnalyzerAPI.modals import ep_range_bin
+from MyListAnalyzerAPI.modals import ep_range_bin, default_time_zone
 from datetime import datetime
 from pytz import timezone
 import numpy as np
@@ -30,7 +30,7 @@ def not_finished_airing(drip: DataDrip):
         currently_airing.loc[:, [name, pic, l_s]])
 
 
-async def report_gen(drip: DataDrip, tz: str = "Asia/Japan"):
+async def report_gen(user_name: str, tz: str, drip, *_):
     status = list_status(drip)
 
     ep_range = extract_ep_bins(drip)
@@ -51,27 +51,27 @@ async def report_gen(drip: DataDrip, tz: str = "Asia/Japan"):
 
     hrs_spent = float(drip.source[drip["list_status", "spent"]].sum())
 
-    return {
-        "row_1": {
-            "values": [
+    return dict(
+        row_1=dict(
+            values=[
                 int(drip.source.shape[0]),
                 int(status.loc["watching", 0]),
                 not_yet_aired
             ],
-            "keys": ["Total Animes", "Watching", "Not Yet Aired"]
-        },
-        "time_spent": [
+            keys=["Total Animes", "Watching", "Not Yet Aired"]
+        ),
+        time_spent=[
             [hrs_spent, "Time spent (hrs)"],
             [hrs_spent / 24, "Time spent (days)"]
         ],
-        "row_2": status[status.index != "watching"].to_json(orient="split"),
-        "row_3": [
+        row_2=status[status.index != "watching"].to_json(orient="split"),
+        row_3=[
             ep_range.to_json(orient="split"),
             [seasons.to_json(orient="split"), this_year.to_json(orient="split")],
             currently_airing.to_json(orient="split"),
             animes_airing.to_json(orient="records"), current_year
         ]
-    }
+    )
 
 
 def ensure_seasons(collected: pandas.DataFrame, as_percent=True, values_col=0):
@@ -108,3 +108,13 @@ def extract_ep_bins(drip: DataDrip):
     # so result {"index": [...bins, "colors"], "data": [...bin_values, ["red", ... "orange"]]}
 
     return ep_range
+
+
+async def process_recent_animes_by_episodes(
+        user_name: str, tz: str, drip, recent_animes: pandas.DataFrame
+):
+    recently_updated_at = recent_animes.updated_at.max().timestamp()
+
+    return dict(
+        recently_updated_at=recently_updated_at
+    )
