@@ -76,3 +76,10 @@ async def _fetch_recent_animes(user_name, time_zone):
         raw_xml = await client.get(f'https://myanimelist.net/rss.php?type=rwe&u={user_name}')
         return XMLParser.to_frame(raw_xml.text, time_zone)
 
+# TODO:
+
+"""
+we can 2 data store for individual tabs
+one for rendering the results in dashboard
+other for sharing the results with the other tabs
+"""

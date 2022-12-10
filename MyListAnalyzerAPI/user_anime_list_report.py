@@ -1,7 +1,7 @@
 import pandas
 import typing
 from MyListAnalyzerAPI.utils import DataDrip
-from MyListAnalyzerAPI.modals import ep_range_bin, default_time_zone
+from MyListAnalyzerAPI.modals import ep_range_bin, default_time_zone, bw_json_frame, date_unit
 from datetime import datetime
 from pytz import timezone
 import numpy as np
@@ -115,6 +115,26 @@ async def process_recent_animes_by_episodes(
 ):
     recently_updated_at = recent_animes.updated_at.max().timestamp()
 
+    # 10 recently updated animes
+    recently_updated = recent_animes[
+        ["id", "title", "updated_at", "up_until", "difference", "status", "total", "re_watched"]
+    ].tail(10).iloc[::-1]
+
+    recently_updated_day_wise, recently_updated_cum_sum = recently_updated_freq(
+        recent_animes, "difference")
+
     return dict(
-        recently_updated_at=recently_updated_at
+        recently_updated_at=recently_updated_at,
+        recently_updated_animes=recently_updated.to_json(
+            orient=bw_json_frame, date_unit="s"),
+        recently_updated_day_wise=recently_updated_day_wise.to_json(orient="split"),
+        recently_updated_cum_sum=recently_updated_cum_sum.to_list()
     )
+
+
+def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
+    updated_freq = recent_animes.groupby(
+        [recent_animes.updated_at.dt.year, recent_animes.updated_at.dt.month, recent_animes.updated_at.dt.day]).sum(col)
+
+    return updated_freq, updated_freq[col].cumsum()
+

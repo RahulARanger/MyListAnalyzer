@@ -30,3 +30,5 @@ ep_range_bin = [
 # examples 12 is in second bin, 24 is also on second bin
 
 bw_json_frame = "values"
+date_unit = "ms"
+
