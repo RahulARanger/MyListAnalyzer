@@ -8,7 +8,7 @@ from pytz import timezone
 
 
 class XMLParser:
-    columns = ["id", "title", "status", "up_until", "total", "updated_at"]
+    columns = ["id", "title", "status", "total", "up_until", "updated_at"]
     calculated_cols = ["difference", "not_completed", "re_watched"]
 
     def __init__(self, what_to_parse):
@@ -29,7 +29,7 @@ class XMLParser:
             return False, False, False
 
         status, watched, total = parsed.groups()
-        return status, numpy.nan if watched == "?" else int(watched), numpy.nan if total == "?" else int(total)
+        return status, numpy.nan if total == "?" else int(total), numpy.nan if watched == "?" else int(watched)
 
     def gen_id(self, link_node: Tree.Element):
         link = link_node.text

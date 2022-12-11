@@ -111,7 +111,7 @@ def extract_ep_bins(drip: DataDrip):
 
 
 async def process_recent_animes_by_episodes(
-        user_name: str, tz: str, drip, recent_animes: pandas.DataFrame
+        user_name: str, _: str, drip, recent_animes: pandas.DataFrame
 ):
     recently_updated_at = recent_animes.updated_at.max().timestamp()
 
@@ -127,13 +127,15 @@ async def process_recent_animes_by_episodes(
         recently_updated_at=recently_updated_at,
         recently_updated_animes=recently_updated.to_json(
             orient=bw_json_frame, date_unit="s"),
-        recently_updated_day_wise=recently_updated_day_wise.to_json(orient="split"),
-        recently_updated_cum_sum=recently_updated_cum_sum.to_list()
+        recently_updated_day_wise=recently_updated_day_wise.T.to_json(orient="split"),
+        recently_updated_cum_sum=recently_updated_cum_sum.to_list(),
+        stamps=recent_animes.updated_at.to_json(date_unit="s")
     )
 
 
 def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
-    updated_freq = recent_animes.groupby(
+    # first two columns are id and title
+    updated_freq = recent_animes.iloc[:, 3:].groupby(
         [recent_animes.updated_at.dt.year, recent_animes.updated_at.dt.month, recent_animes.updated_at.dt.day]).sum(col)
 
     return updated_freq, updated_freq[col].cumsum()
