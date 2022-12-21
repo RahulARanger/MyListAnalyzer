@@ -30,7 +30,7 @@ def not_finished_airing(drip: DataDrip):
         currently_airing.loc[:, [name, pic, l_s]])
 
 
-async def report_gen(user_name: str, tz: str, drip, *_):
+async def report_gen(tz: str, drip):
     status = list_status(drip)
 
     ep_range = extract_ep_bins(drip)
@@ -111,7 +111,7 @@ def extract_ep_bins(drip: DataDrip):
 
 
 async def process_recent_animes_by_episodes(
-        user_name: str, _: str, drip, recent_animes: pandas.DataFrame
+        recent_animes: pandas.DataFrame
 ):
     recently_updated_at = recent_animes.updated_at.max().timestamp()
 
@@ -120,8 +120,10 @@ async def process_recent_animes_by_episodes(
         ["id", "title", "updated_at", "up_until", "difference", "status", "total", "re_watched"]
     ].tail(10).iloc[::-1]
 
+    grouped_by_updated_at = recent_animes.iloc[:, 3:]
+
     recently_updated_day_wise, recently_updated_cum_sum = recently_updated_freq(
-        recent_animes, "difference")
+        grouped_by_updated_at, "difference")
 
     return dict(
         recently_updated_at=recently_updated_at,
@@ -135,8 +137,13 @@ async def process_recent_animes_by_episodes(
 
 def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
     # first two columns are id and title
-    updated_freq = recent_animes.iloc[:, 3:].groupby(
-        [recent_animes.updated_at.dt.year, recent_animes.updated_at.dt.month, recent_animes.updated_at.dt.day]).sum(col)
+    updated_freq = recent_animes.groupby(
+        [
+            recent_animes.updated_at.dt.year,
+            recent_animes.updated_at.dt.month,
+            recent_animes.updated_at.dt.day
+        ]
+    ).sum(col)
 
     return updated_freq, updated_freq[col].cumsum()
 

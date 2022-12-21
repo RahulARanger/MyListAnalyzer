@@ -1,72 +1,18 @@
 import logging
-from MyListAnalyzerAPI.modals import ProcessUserDetails, bw_json_frame
+from MyListAnalyzerAPI.modals import ProcessUserDetails
 from MyListAnalyzerAPI.user_anime_list_report import report_gen as general_report, process_recent_animes_by_episodes
-from MyListAnalyzerAPI.utils import DataDrip
+from MyListAnalyzerAPI.utils import DataDrip, bw_json_frame
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.requests import Request
-import pandas
 import typing
 import httpx
-from MyListAnalyzerAPI.parser import XMLParser
+from MyListAnalyzerAPI.utils import XMLParser
 
 ROUTES = dict(Overview=general_report, Recently=process_recent_animes_by_episodes)
 
 
-async def parse_user_anime_list(request: Request):
-    tab_name = request.path_params["tab"]
-    error_code = 406
-
-    if tab_name not in ROUTES:
-        return PlainTextResponse(
-            f"Invalid Argument, Expected values from any one of the {', '.join(ROUTES.keys())}",
-            status_code=error_code
-        )
-
-    try:
-        failed, response = await _parse_user_anime_list(ProcessUserDetails(**await request.json()), tab_name)
-    except Exception as error:
-        failed = True
-        response = f"Failed because of {repr(error)}"
-        logging.exception(response, exc_info=True)
-
-    return JSONResponse(
-        content=response, status_code=200
-    ) if not failed else PlainTextResponse(
-        content=response,
-        status_code=error_code
-    )
-
-
-async def _parse_user_anime_list(anime_list: ProcessUserDetails, tab_name):
-    user_anime_list = anime_list.data.get("user_anime_list", "")
-    recent_animes = anime_list.data.get("recent_animes", "")
-
-    if not recent_animes:
-        _frame, errors = await _fetch_recent_animes(anime_list.user_name, anime_list.timezone)
-        assert not errors, f"Failed to fetch recent animes: %s" % (", ".join(errors), )
-    else:
-        _frame: pandas.DataFrame = XMLParser.from_raw(
-            recent_animes, anime_list.timezone) if anime_list.need_to_parse_recent else ""
-
-    is_raw = isinstance(user_anime_list, list)
-    is_drip = any((is_raw, isinstance(user_anime_list, dict)))
-
-    drip = DataDrip.from_api(
-        user_anime_list, True) if is_raw else DataDrip.from_raw(user_anime_list) if is_drip else ""
-
-    content = dict(
-        dripped=await ROUTES[tab_name](
-            anime_list.user_name,
-            anime_list.timezone,
-            drip,
-            _frame
-        )
-    )
-
-    content["drip"] = drip() if is_raw else ""
-    content["recent_animes"] = _frame.to_json(orient=bw_json_frame, date_unit="ms") if not (
-            recent_animes or isinstance(_frame, str)) else ""
-    return False, content
+def understand_user_anime_list(raw: typing.Union[typing.List, typing.Dict]):
+    return DataDrip.from_api(raw, True) if isinstance(raw, list) else DataDrip.from_raw(raw)
 
 
 async def _fetch_recent_animes(user_name, time_zone):
@@ -76,10 +22,79 @@ async def _fetch_recent_animes(user_name, time_zone):
         raw_xml = await client.get(f'https://myanimelist.net/rss.php?type=rwe&u={user_name}')
         return XMLParser.to_frame(raw_xml.text, time_zone)
 
-# TODO:
 
-"""
-we can 2 data store for individual tabs
-one for rendering the results in dashboard
-other for sharing the results with the other tabs
-"""
+async def parse_user_anime_list(request: Request):
+    details = ProcessUserDetails(**await request.json())
+    try:
+        return JSONResponse(
+            content=dict(user_anime_list=understand_user_anime_list(details.data)())
+        )
+    except Exception as error:
+        logging.exception("Failed to parse User Anime List", exc_info=True)
+        return PlainTextResponse(
+            f"Failed to parse User Anime List, Make sure the format sent is a valid one. Error: {repr(error)}",
+            status_code=406
+        )
+
+
+async def fetch_recent_animes(request: Request):
+    details = ProcessUserDetails(**await request.json())
+
+    try:
+        return JSONResponse(
+            content=dict(
+                recent_animes=(
+                    await _fetch_recent_animes(details.user_name, details.timezone)
+                ).to_json(orient=bw_json_frame, date_unit="ms"))
+        )
+    except Exception as error:
+        logging.exception("Failed to fetch Recent Animes", exc_info=True)
+        return PlainTextResponse(
+            f"Failed to fetch and Parse Recent animes, Please refer to this error: {repr(error)}",
+            status_code=406
+        )
+
+
+async def give_over_view(request: Request):
+    try:
+        details = ProcessUserDetails(**await request.json())
+        drip = understand_user_anime_list(details.data)
+        return JSONResponse(
+            content=dict(await general_report(details.timezone, drip))
+        )
+    except Exception as error:
+        logging.exception("Failed to generate overview report", exc_info=True)
+        return PlainTextResponse(
+            status_code=406,
+            content=f"Failed to process user anime list for generating Report for overview, Please refer to this "
+                    f"error: {repr(error)}"
+        )
+
+
+async def generate_report_for_recent_animes(request: Request):
+    fetched = False
+    try:
+        anime_list = ProcessUserDetails(**await request.json())
+        if not anime_list.data:
+            fetched = True
+            anime_list.data = await _fetch_recent_animes(anime_list.user_name, anime_list.timezone)
+        else:
+            anime_list.data = XMLParser.from_raw(anime_list.data, anime_list.timezone)
+
+        content = await process_recent_animes_by_episodes(anime_list.data)
+
+        if fetched:
+            content["recent_animes"] = anime_list.data.to_json(orient=bw_json_frame, date_unit="ms")
+
+    except Exception as error:
+        return PlainTextResponse(
+            content=(
+                        "Failed to fetch recent animes" if fetched else
+                        "Failed to generate report based on the recent animes received"
+                    ) + f", Please refer to the error: {repr(error)}.",
+            status_code=406
+        )
+
+    return JSONResponse(
+        content=content
+    )
