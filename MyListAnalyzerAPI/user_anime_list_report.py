@@ -1,3 +1,4 @@
+import numpy
 import pandas
 import typing
 from MyListAnalyzerAPI.utils import DataDrip
@@ -5,6 +6,7 @@ from MyListAnalyzerAPI.modals import ep_range_bin, default_time_zone, bw_json_fr
 from datetime import datetime
 from pytz import timezone
 import numpy as np
+import statistics as stat
 
 
 def list_status(drip: DataDrip):
@@ -15,41 +17,34 @@ def list_status(drip: DataDrip):
 
 
 def not_finished_airing(drip: DataDrip):
-    n_s = drip["node", "status"]
-    l_s = drip["list_status", "status"]
-    name = drip["node", "title"]
-    pic = drip["node", "main_picture", "medium"]
+    watchers = drip.node("status")
+    l_s = drip.list_status("status")
+    name = drip.node("title")
 
     # we don't need finished ones
-    status_maps = pandas.DataFrame(drip.source[[l_s, n_s, name, pic]][drip.source[n_s] != "finished_airing"])
-    currently_airing = status_maps[status_maps[n_s] == "currently_airing"]
+    status_maps = pandas.DataFrame(drip.source[[l_s, watchers, name]][drip.source[watchers] != "finished_airing"])
+    currently_airing = status_maps[status_maps[watchers] == "currently_airing"]
 
     return (
-        int((status_maps[n_s] == "not_yet_aired").shape[0]),
+        int((status_maps[watchers] == "not_yet_aired").shape[0]),
         currently_airing.loc[:, [l_s]].groupby(l_s).value_counts(),
-        currently_airing.loc[:, [name, pic, l_s]])
+        currently_airing.loc[:, [name, l_s]])
 
 
-async def report_gen(tz: str, drip):
+async def report_gen(tz: str, drip: DataDrip):
+    # drip.prepare_time_stamps(tz)
     status = list_status(drip)
-
     ep_range = extract_ep_bins(drip)
 
     not_yet_aired, currently_airing, animes_airing = not_finished_airing(drip)
 
-    season = drip["node", "start_season", "season"]
-    start_year = drip["node", "start_season", "year"]
+    hrs_spent = float(drip.source[drip.list_status("spent")].sum())
 
-    current_year = datetime.now(timezone(tz)).year
+    score = drip.list_status("score")
+    genres_mode = str(int(stat.mode(np.concatenate(drip.source[drip.node("genres")].to_numpy()))))
+    studios_mode = str(int(stat.mode(np.concatenate(drip.source[drip.node("studios")].to_numpy()))))
 
-    seasons = ensure_seasons(
-        pandas.DataFrame(drip.source[[season]].groupby(season).value_counts())
-    )
-    this_year = ensure_seasons(
-        pandas.DataFrame(drip.source[drip.source[start_year] == current_year][[season]].groupby(season).value_counts())
-    )
-
-    hrs_spent = float(drip.source[drip["list_status", "spent"]].sum())
+    watched = int(drip.source[drip.list_status("num_episodes_watched")].sum())
 
     return dict(
         row_1=dict(
@@ -67,25 +62,22 @@ async def report_gen(tz: str, drip):
         row_2=status[status.index != "watching"].to_json(orient="split"),
         row_3=[
             ep_range.to_json(orient="split"),
-            [seasons.to_json(orient="split"), this_year.to_json(orient="split")],
             currently_airing.to_json(orient="split"),
-            animes_airing.to_json(orient="records"), current_year
-        ]
+            animes_airing.to_json(orient="records")
+        ],
+        rating_over_years=rating_over_years(drip),
+        mostly_seen_genre=drip.genres[genres_mode],
+        mostly_seen_studio=drip.studios[studios_mode],
+        avg_score=drip.source[score][drip.source[score] > 0].mean(),
+        eps_watched=watched,
+        genre_link=genres_mode,
+        studio_link=studios_mode,
+        current_year=datetime.now(timezone(tz)).year
     )
 
 
-def ensure_seasons(collected: pandas.DataFrame, as_percent=True, values_col=0):
-    collected = collected.reindex(["spring", "summer", "fall", "winter"])
-
-    if as_percent:
-        total = collected[values_col].sum()
-        collected["%"] = collected[values_col] / total
-
-    return collected
-
-
 def extract_ep_bins(drip: DataDrip):
-    ep = drip["list_status", "num_episodes_watched"]
+    ep = drip.node("num_episodes")
 
     # animes of 0 episodes are excluded maybe those are planned to be aired.
 
@@ -117,8 +109,8 @@ async def process_recent_animes_by_episodes(
 
     # 10 recently updated animes
     recently_updated = recent_animes[
-        ["id", "title", "updated_at", "up_until", "difference", "status", "total", "re_watched"]
-    ].tail(10).iloc[::-1]
+                           ["id", "title", "updated_at", "up_until", "difference", "status", "total", "re_watched"]
+                       ].tail(10).iloc[::-1]
 
     grouped_by_updated_at = recent_animes.iloc[:, 3:]
 
@@ -147,3 +139,29 @@ def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
 
     return updated_freq, updated_freq[col].cumsum()
 
+
+def rating_over_years(drip: DataDrip):
+    updated_at = drip.source[drip.list_status("updated_at")]
+
+    collected = drip.source[[drip.node("rating")]].groupby(
+        [updated_at.dt.year, updated_at.dt.month, drip.node("rating")]).value_counts().sort_index()
+
+    # https://myanimelist.net/forum/?topicid=2039350
+    ratings = ["pg", "pg_13", "g", "r", "r+", "rx"]
+
+    payload = dict(ratings=ratings, years=[], months=[], frames=[])
+
+    for year, month in zip(collected.index.get_level_values(0), collected.index.get_level_values(1)):
+        prev = payload["frames"][-1] if payload["frames"] else ([0] * len(ratings))
+        payload["years"].append(year)
+        payload["months"].append(month)
+        payload["frames"].append(
+            [
+                int(collected.get((year, month, rating), 0)) + prev[index]
+                for index, rating in enumerate(ratings)
+            ]
+        )
+
+    payload["max_y_range"] = max(payload["frames"][-1])
+
+    return payload

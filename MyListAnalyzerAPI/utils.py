@@ -13,39 +13,43 @@ def flat_me(bulge, safe):
     if not bulge or numpy.all(pandas.isna(bulge)):
         return []
 
+    # while storing in the storage, it is auto converted to string so
     _safe = {str(_["id"]): _["name"].strip() for _ in bulge}
+
     safe.update(_safe)
     return tuple(_safe.keys())
 
 
 class DataDrip:
     sep = "."
+    orient = "split"
+    unit = 'ms'
 
     def __init__(self, source, genres=None, studios=None):
         self.__source: pandas.DataFrame = source
         self.genres = genres if genres else {}
         self.studios = studios if studios else {}
 
-        self.source.set_index(self.source[self["node", "id"]], inplace=True, drop=True)
+        self.source.set_index(self.source[self.node("id")], inplace=True, drop=True)
 
     def get_stats(self):
         return {
             "num_items": self.source.shape[0],
-            "num_episodes": self.source[self["list_status", "num_episodes_watched"]].sum(),
-            "num_days": self.source[self["list_status", "spent"]].sum()
+            "num_episodes": self.source[self.list_status("num_episodes_watched")].sum(),
+            "num_days": self.source[self.list_status("spent")].sum()
         }
 
     def purify(self):
-        self.source[self["list_status", "spent"]] = \
-            self.source[self["node", "average_episode_duration"]] * \
-            self.source[self["list_status", "num_episodes_watched"]] / 3600
+        self.source[self.list_status("spent")] = \
+            self.source[self.node("average_episode_duration")] * \
+            self.source[self.list_status("num_episodes_watched")] / 3600
 
         self.genres = {}
-        index = self["node", "genres"]
+        index = self.node("genres")
         self.source[index] = self.source[index].apply(lambda x: flat_me(x, self.genres))
 
         self.studios = {}
-        index = self["node", "studios"]
+        index = self.node("studios")
         self.source[index] = self.source[index].apply(lambda x: flat_me(x, self.studios))
 
     @property
@@ -60,11 +64,13 @@ class DataDrip:
 
         raw.source.dropna(
             subset=[
-                raw["node", "id"]
+                raw.node("id")
             ], inplace=True
         )  # if any
 
-        raw.source.set_index(raw["node", "id"])
+        # pandas.to_datetime(raw.source.list_status("updated_at"), utc=True, unit="ms").dt.tz_convert(time_zone)
+
+        raw.source.set_index(raw.node("id"))
         raw.purify() if fix else ...
 
         return raw
@@ -72,7 +78,7 @@ class DataDrip:
     @classmethod
     def from_raw(cls, raw: dict):
         return DataDrip(
-            pandas.read_json(raw.get("data", ""), orient="columns"),
+            pandas.read_json(raw.get("data", ""), orient=cls.orient),
             raw.get("genres", None),
             raw.get("studios", None)
         )
@@ -83,10 +89,23 @@ class DataDrip:
 
     def __call__(self):
         return dict(
-            data=self.source.to_json(orient="columns"),
+            data=self.source.to_json(orient=self.orient, date_unit=self.unit),
             genres=self.genres,
             studios=self.studios
         )
+
+    def node(self, *args):
+        return self.__getitem__(("node", *args))
+
+    def list_status(self, *args):
+        return self.__getitem__(("list_status", *args))
+
+    def prepare_time_stamps(self, tz):
+        updated_at = self.list_status("updated_at")
+
+        self.source[updated_at] = pandas.to_datetime(
+            updated_at, utc=True, unit=self.unit
+        ).dt.tz_convert(tz)
 
 
 class XMLParser:
