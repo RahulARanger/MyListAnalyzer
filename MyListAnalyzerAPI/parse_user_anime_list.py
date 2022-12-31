@@ -59,8 +59,9 @@ async def give_over_view(request: Request):
     try:
         details = ProcessUserDetails(**await request.json())
         drip = understand_user_anime_list(details.data)
+        content = await general_report(details.timezone, drip)
         return JSONResponse(
-            content=dict(await general_report(details.timezone, drip))
+            content=content
         )
     except Exception as error:
         logging.exception("Failed to generate overview report", exc_info=True)

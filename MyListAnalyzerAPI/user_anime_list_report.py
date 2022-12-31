@@ -45,6 +45,7 @@ async def report_gen(tz: str, drip: DataDrip):
     studios_mode = str(int(stat.mode(np.concatenate(drip.source[drip.node("studios")].to_numpy()))))
 
     watched = int(drip.source[drip.list_status("num_episodes_watched")].sum())
+    avg_score = drip.source[score][drip.source[score] > 0].mean()
 
     return dict(
         row_1=dict(
@@ -68,7 +69,7 @@ async def report_gen(tz: str, drip: DataDrip):
         rating_over_years=rating_over_years(drip),
         mostly_seen_genre=drip.genres[genres_mode],
         mostly_seen_studio=drip.studios[studios_mode],
-        avg_score=drip.source[score][drip.source[score] > 0].mean(),
+        avg_score=0 if np.isnan(avg_score) else avg_score,
         eps_watched=watched,
         genre_link=genres_mode,
         studio_link=studios_mode,

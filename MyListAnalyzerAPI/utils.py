@@ -1,3 +1,4 @@
+import logging
 import typing
 import re
 import xml.etree.ElementTree as Tree
@@ -156,7 +157,8 @@ class XMLParser:
             row = (anime_id, title, *desc, time_stamp)
 
             if not all(row):
-                raise AssertionError(f"failed to parse recent animes because of the record: {row}")
+                logging.warning("Failed to parse recent animes because of the record: %s, Hence Skipping it", row)
+                continue
 
             rows.append(row)
 
