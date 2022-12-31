@@ -20,3 +20,8 @@ ep_range_bin = [
 bw_json_frame = "values"
 date_unit = "ms"
 
+
+@dataclass
+class ValidateUser:
+    user_name: str
+    token: typing.Optional[str] = ""
