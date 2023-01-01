@@ -51,7 +51,7 @@ async def report_gen(tz: str, drip: DataDrip):
         row_1=dict(
             values=[
                 int(drip.source.shape[0]),
-                int(status.loc["watching", 0]),
+                int(status.loc[:, 0].get("watching", 0)),
                 not_yet_aired
             ],
             keys=["Total Animes", "Watching", "Not Yet Aired"]
