@@ -25,3 +25,13 @@ date_unit = "ms"
 class ValidateUser:
     user_name: str
     token: typing.Optional[str] = ""
+
+
+rating = {
+    'g': "All Ages",
+    "pg": "Children",
+    "pg_13": "Teens 13 or Older",
+    "r": "17+ (violence & profanity)",
+    "r+": "Mild Nudity",
+    "rx": "Hentai"
+}

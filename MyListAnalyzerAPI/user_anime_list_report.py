@@ -1,17 +1,16 @@
-import numpy
-import pandas
-import typing
-from MyListAnalyzerAPI.utils import DataDrip
-from MyListAnalyzerAPI.modals import ep_range_bin, default_time_zone, bw_json_frame, date_unit
-from datetime import datetime
-from pytz import timezone
-import numpy as np
 import statistics as stat
+from datetime import datetime
+import numpy
+import numpy as np
+import pandas
+from pytz import timezone
+from MyListAnalyzerAPI.modals import ep_range_bin, bw_json_frame, rating
+from MyListAnalyzerAPI.utils import DataDrip
 
 
 def list_status(drip: DataDrip):
     status_index = drip["list_status", "status"]
-    collected = pandas.DataFrame(drip.source[[status_index]].groupby(status_index).value_counts())
+    collected = pandas.DataFrame(drip.source[status_index].value_counts())
     collected["%"] = (collected.values / collected.values.sum()) * 100
     return collected
 
@@ -27,7 +26,7 @@ def not_finished_airing(drip: DataDrip):
 
     return (
         int((status_maps[watchers] == "not_yet_aired").shape[0]),
-        currently_airing.loc[:, [l_s]].groupby(l_s).value_counts(),
+        currently_airing.loc[:, l_s].value_counts(),
         currently_airing.loc[:, [name, l_s]])
 
 
@@ -40,18 +39,21 @@ async def report_gen(tz: str, drip: DataDrip):
 
     hrs_spent = float(drip.source[drip.list_status("spent")].sum())
 
-    score = drip.list_status("score")
+    score_index = drip.list_status("score")
     genres_mode = str(int(stat.mode(np.concatenate(drip.source[drip.node("genres")].to_numpy()))))
     studios_mode = str(int(stat.mode(np.concatenate(drip.source[drip.node("studios")].to_numpy()))))
 
     watched = int(drip.source[drip.list_status("num_episodes_watched")].sum())
-    avg_score = drip.source[score][drip.source[score] > 0].mean()
+    avg_score = drip.source[score_index][drip.source[score_index] > 0].mean()
+
+    rating_dist = drip.source[drip.node("rating")].value_counts().convert_dtypes()
+    rating_dist.index = rating_dist.index.map(rating)
 
     return dict(
         row_1=dict(
             values=[
                 int(drip.source.shape[0]),
-                int(status.loc[:, 0].get("watching", 0)),
+                int(status[drip.list_status("status")].get("watching", 0)),
                 not_yet_aired
             ],
             keys=["Total Animes", "Watching", "Not Yet Aired"]
@@ -61,11 +63,8 @@ async def report_gen(tz: str, drip: DataDrip):
             [hrs_spent / 24, "Time spent (days)"]
         ],
         row_2=status[status.index != "watching"].to_json(orient="split"),
-        row_3=[
-            ep_range.to_json(orient="split"),
-            currently_airing.to_json(orient="split"),
-            animes_airing.to_json(orient="records")
-        ],
+        ep_range=ep_range.to_json(orient="columns"),
+        status_for_currently_airing=currently_airing.to_json(orient="split"),
         rating_over_years=rating_over_years(drip),
         mostly_seen_genre=drip.genres[genres_mode],
         mostly_seen_studio=drip.studios[studios_mode],
@@ -73,7 +72,9 @@ async def report_gen(tz: str, drip: DataDrip):
         eps_watched=watched,
         genre_link=genres_mode,
         studio_link=studios_mode,
-        current_year=datetime.now(timezone(tz)).year
+        current_year=datetime.now(timezone(tz)).year,
+        rating_dist=rating_dist.to_json(orient="index"),
+        specials=special_animes_report(drip)
     )
 
 
@@ -82,25 +83,25 @@ def extract_ep_bins(drip: DataDrip):
 
     # animes of 0 episodes are excluded maybe those are planned to be aired.
 
-    ep_range = pandas.DataFrame(drip.source[drip.source[ep] != 0][[ep]])
-
-    # these are the ranges, manually set please suggest good bins.
-    ep_range_bin_labels = np.array([
+    ep_range = pandas.DataFrame(drip.source[[ep]][drip.source[ep] != 0])
+    ep_range_bin_labels = pandas.Series(0, index=[
         "<12", "12-24", "25-100", "101-200", "201-500", ">500"
-    ])
+    ], name="index")
 
     # index to labels
-    ep_range[ep] = ep_range_bin_labels[np.digitize(ep_range[ep], ep_range_bin)]
+    ep_range[ep] = ep_range_bin_labels.index[numpy.digitize(ep_range[ep], ep_range_bin)]
 
-    ep_range = ep_range.groupby(ep).value_counts()
-    ep_range["color"] = np.where(ep_range == ep_range.max(), "crimson", "lightslategray")
-    # it's not like I blindly copied those colors, its just I like. Suggest any colors if needed please.
+    ep_range = ep_range[ep].value_counts().rename("ep_range")
 
-    # note above one doesn't add a column instead adds a row in the group-by variable
-    # as it is not pandas dataframe
+    extracted = pandas.merge(
+        ep_range_bin_labels, ep_range, right_on=ep_range.index, left_on=ep_range_bin_labels.index, how="left",
+        suffixes=("_", "_actual")
+    )
+    extracted["color"] = extracted.ep_range == extracted.ep_range.max()
+
     # so result {"index": [...bins, "colors"], "data": [...bin_values, ["red", ... "orange"]]}
 
-    return ep_range
+    return extracted.loc[:, ["key_0", "color", "ep_range"]]
 
 
 async def process_recent_animes_by_episodes(
@@ -166,3 +167,22 @@ def rating_over_years(drip: DataDrip):
     payload["max_y_range"] = max(payload["frames"][-1])
 
     return payload
+
+
+def special_animes_report(drip: DataDrip):
+    pop = drip.source.loc[drip.source[drip.node("popularity")].idxmin()]
+    recent = drip.source.loc[drip.source[drip.list_status("updated_at")].idxmax()]
+    top = drip.source.loc[drip.source[drip.node("rank")].idxmin()]
+    oldest = drip.source.loc[drip.source[drip.node("start_date")].astype("datetime64[ns]").idxmin()]
+    longest_spent = drip.source.loc[drip.source[drip.list_status("spent")].idxmax()]
+
+    watched_movies = drip.source[
+        (drip.source[drip.node("media_type")] == "movie") & (drip.source[drip.list_status("status")] == "completed")]
+    recently_completed_movie = None if watched_movies.empty else watched_movies.loc[watched_movies[drip.list_status("updated_at")].idxmax()]
+
+    return dict(
+        pop=pop.to_json(), recent=recent.to_json(),
+        top=top.to_json(), oldest=oldest.to_json(),
+        longest_spent=longest_spent.to_json(),
+        recently_completed_movie=recently_completed_movie.to_json() if recently_completed_movie else False
+    )

@@ -82,12 +82,14 @@ async def generate_report_for_recent_animes(request: Request):
         else:
             anime_list.data = XMLParser.from_raw(anime_list.data, anime_list.timezone)
 
+        assert anime_list.data, "User has empty `Recent Anime List by Episodes.`"
         content = await process_recent_animes_by_episodes(anime_list.data)
 
         if fetched:
             content["recent_animes"] = anime_list.data.to_json(orient=bw_json_frame, date_unit="ms")
 
     except Exception as error:
+        logging.exception("Failed to fetch the recent animes, please refer to the following error", exc_info=True)
         return PlainTextResponse(
             content=(
                         "Failed to fetch recent animes" if fetched else

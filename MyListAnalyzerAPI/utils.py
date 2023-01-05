@@ -177,8 +177,10 @@ class XMLParser:
         return frame
 
     @classmethod
-    def from_raw(cls, raw, time_zone) -> pandas.DataFrame:
+    def from_raw(cls, raw, time_zone) -> typing.Union[bool, pandas.DataFrame]:
         frame = pandas.read_json(raw, orient=bw_json_frame)
+        if frame.empty:
+            return False
         frame.columns = cls.columns + cls.calculated_cols
         frame.updated_at = pandas.to_datetime(frame.updated_at, utc=True, unit="ms").dt.tz_convert(time_zone)
         return frame
