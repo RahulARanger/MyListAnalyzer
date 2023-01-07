@@ -3,4 +3,4 @@ pandas==1.5.2
 uvicorn==0.20.0
 starlette==0.23.1
 pytz==2022.7
-httpx==0.23.1
+httpx==0.23.3

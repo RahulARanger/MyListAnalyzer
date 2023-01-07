@@ -184,3 +184,7 @@ class XMLParser:
         frame.columns = cls.columns + cls.calculated_cols
         frame.updated_at = pandas.to_datetime(frame.updated_at, utc=True, unit="ms").dt.tz_convert(time_zone)
         return frame
+
+
+def format_stamp(date, also_for_time=False):
+    return date.strftime("%b %d, %Y" if not also_for_time else "%b %d, %Y %H:%M")

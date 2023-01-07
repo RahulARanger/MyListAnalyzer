@@ -5,7 +5,7 @@ import numpy as np
 import pandas
 from pytz import timezone
 from MyListAnalyzerAPI.modals import ep_range_bin, bw_json_frame, rating
-from MyListAnalyzerAPI.utils import DataDrip
+from MyListAnalyzerAPI.utils import DataDrip, format_stamp
 
 
 def list_status(drip: DataDrip):
@@ -31,6 +31,7 @@ def not_finished_airing(drip: DataDrip):
 
 
 async def report_gen(tz: str, drip: DataDrip):
+    tz_info = timezone(tz)
     # drip.prepare_time_stamps(tz)
     status = list_status(drip)
     ep_range = extract_ep_bins(drip)
@@ -74,7 +75,7 @@ async def report_gen(tz: str, drip: DataDrip):
         studio_link=studios_mode,
         current_year=datetime.now(timezone(tz)).year,
         rating_dist=rating_dist.to_json(orient="index"),
-        specials=special_animes_report(drip)
+        specials=special_animes_report(drip, tz_info)
     )
 
 
@@ -169,20 +170,96 @@ def rating_over_years(drip: DataDrip):
     return payload
 
 
-def special_animes_report(drip: DataDrip):
-    pop = drip.source.loc[drip.source[drip.node("popularity")].idxmin()]
-    recent = drip.source.loc[drip.source[drip.list_status("updated_at")].idxmax()]
-    top = drip.source.loc[drip.source[drip.node("rank")].idxmin()]
-    oldest = drip.source.loc[drip.source[drip.node("start_date")].astype("datetime64[ns]").idxmin()]
-    longest_spent = drip.source.loc[drip.source[drip.list_status("spent")].idxmax()]
+def special_animes_report(drip: DataDrip, tzinfo: timezone):
+    progress_parameters = drip.node(
+        "num_episodes"
+    ), drip.list_status(
+        "num_episodes_watched"
+    ), drip.list_status(
+        "spent"
+    )
 
+    required_parameters = drip.node(
+        "num_favorites"
+    ), drip.node(
+        "start_date"
+    ), drip.node(
+        "end_date"
+    )
+
+    general_parameters = drip.node(
+        "title"
+    ), drip.node("id"), drip.node("main_picture.large")
+
+    info_parameters = drip.list_status(
+        "start_date"
+    ), drip.list_status("finish_date"), drip.list_status("updated_at")
+
+    results = {}
+
+    # MOST POPULAR ANIME
+    popular = drip.source.loc[drip.source[drip.node("popularity")].idxmin()]
+    pop_value = str(popular.get(drip.node("popularity"))), "Popularity Rank"
+
+    # MOST RECENTLY UPDATED ANIME
+    recent = drip.source.loc[drip.source[drip.list_status("updated_at")].idxmax()]
+    recent_value = [recent.get(drip.list_status("updated_at")), "Updated Stamp"]
+    recent_value[0] = "NA" if not recent_value[0] else format_stamp(pandas.to_datetime(recent_value[0]))
+
+    # TOP SCORED ANIME
+    top = drip.source.loc[drip.source[drip.node("rank")].idxmin()]
+    rank = str(top.get(drip.node("rank"))), "Rank"
+
+    # OLDEST ANIME IN THE LIST
+    oldest = drip.source.loc[drip.source[drip.node("start_date")].astype("datetime64[ns]").idxmin()]
+    start_date = [oldest.get(drip.node("start_date")), "Started at"]
+    start_date[0] = "NA" if not start_date[0] else format_stamp(pandas.to_datetime(start_date[0]))
+    # Mostly we don't need to apply timezone as the start date has no info about the time
+
+    # ANIME THE USER HAS SPENT THE LONGEST TIME WITH
+    longest_spent = drip.source.loc[drip.source[drip.list_status("spent")].idxmax()]
+    spent = f"{float(longest_spent.get(drip.list_status('spent')))} hrs", "Longest Time Spent"
+
+    # RECENTLY COMPLETED MOVIE
     watched_movies = drip.source[
         (drip.source[drip.node("media_type")] == "movie") & (drip.source[drip.list_status("status")] == "completed")]
-    recently_completed_movie = None if watched_movies.empty else watched_movies.loc[watched_movies[drip.list_status("updated_at")].idxmax()]
-
-    return dict(
-        pop=pop.to_json(), recent=recent.to_json(),
-        top=top.to_json(), oldest=oldest.to_json(),
-        longest_spent=longest_spent.to_json(),
-        recently_completed_movie=recently_completed_movie.to_json() if recently_completed_movie else False
+    recently_completed_movie = None if watched_movies.empty else watched_movies.loc[
+        watched_movies[drip.list_status("updated_at")].idxmax()]
+    recent_movie_stamp = recently_completed_movie.get("updated_at", "")
+    recent_movie_stamp = (
+        "NA" if not recent_movie_stamp else format_stamp(recent_movie_stamp.astimezone(tzinfo)), "Mostly Seen Movie"
     )
+
+    for row, key, special in zip(
+            (popular, recent, top, oldest, longest_spent),
+            ("pop", "recent", "top", "oldest", "longest_spent", "recently_completed_movie"),
+            (pop_value, recent_value, rank, start_date, spent, recent_movie_stamp)
+
+    ):
+        required = [
+            (
+                format_stamp(pandas.to_datetime(row.get(_))) if row.get(_, "") else "NA"
+            ) for _ in required_parameters[1:]
+        ]
+        required.insert(0, int(row.get(required_parameters[0], "NA")))
+
+        info = [
+            (
+                format_stamp(pandas.to_datetime(row.get(_))) if row.get(_, "") else "NA"
+            ) for _ in info_parameters[: -1]
+        ]
+
+        info.append(
+            format_stamp(pandas.to_datetime(row.get(info_parameters[-1])).astimezone(tzinfo), True)
+            if row.get(info_parameters[-1], "") else "NA"
+        )
+
+        results[key] = dict(
+            general=[str(row.get(_, "")) for _ in general_parameters],
+            progress=[int(row.get(_, 0)) for _ in progress_parameters] + [row.get(drip.list_status("status"), "")],
+            required_parameters=required,
+            special=special,
+            info=info
+        )
+
+    return results
