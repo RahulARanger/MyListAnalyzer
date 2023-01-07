@@ -225,7 +225,7 @@ def special_animes_report(drip: DataDrip, tzinfo: timezone):
         (drip.source[drip.node("media_type")] == "movie") & (drip.source[drip.list_status("status")] == "completed")]
     recently_completed_movie = None if watched_movies.empty else watched_movies.loc[
         watched_movies[drip.list_status("updated_at")].idxmax()]
-    recent_movie_stamp = recently_completed_movie.get("updated_at", "")
+    recent_movie_stamp = recently_completed_movie.get("updated_at", "") if recently_completed_movie else ""
     recent_movie_stamp = (
         "NA" if not recent_movie_stamp else format_stamp(recent_movie_stamp.astimezone(tzinfo)), "Mostly Seen Movie"
     )
