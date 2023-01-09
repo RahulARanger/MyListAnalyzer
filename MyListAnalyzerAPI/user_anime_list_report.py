@@ -118,8 +118,7 @@ async def process_recent_animes_by_episodes(
     return dict(
         recently_updated_at=recently_updated_at,
         recently_updated_day_wise=recently_updated_day_wise.T.to_json(orient="split"),
-        recently_updated_cum_sum=recently_updated_cum_sum.to_list(),
-        stamps=recent_animes.updated_at.to_json(date_unit="s")
+        recently_updated_cum_sum=recently_updated_cum_sum.to_list()
     )
 
 

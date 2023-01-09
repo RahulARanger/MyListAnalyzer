@@ -11,6 +11,12 @@ class ProcessUserDetails:
     data: typing.Optional[typing.Union[typing.List, typing.Dict]] = None
 
 
+@dataclass
+class ForUserAnimeList:
+    user_name: str
+    url: typing.Optional[str] = None
+
+
 ep_range_bin = [
     12, 24, 100, 200, 500
 ]
@@ -19,12 +25,6 @@ ep_range_bin = [
 
 bw_json_frame = "values"
 date_unit = "ms"
-
-
-@dataclass
-class ValidateUser:
-    user_name: str
-    token: typing.Optional[str] = ""
 
 
 rating = {
