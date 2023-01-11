@@ -31,8 +31,11 @@ def not_finished_airing(drip: DataDrip):
 
 
 async def report_gen(tz: str, drip: DataDrip):
-    tz_info = timezone(tz)
-    # drip.prepare_time_stamps(tz)
+    # PRE REQUISITES
+    for dates in (drip.list_status("updated_at"), drip.node("start_date")):
+        drip.source[dates] = pandas.to_datetime(drip.source[dates])
+    # D-TYPE CONVERSION COMPLETED (if required for all values)
+
     status = list_status(drip)
     ep_range = extract_ep_bins(drip)
 
@@ -66,7 +69,6 @@ async def report_gen(tz: str, drip: DataDrip):
         row_2=status[status.index != "watching"].to_json(orient="split"),
         ep_range=ep_range.to_json(orient="columns"),
         status_for_currently_airing=currently_airing.to_json(orient="split"),
-        rating_over_years=rating_over_years(drip),
         mostly_seen_genre=drip.genres[genres_mode],
         mostly_seen_studio=drip.studios[studios_mode],
         avg_score=0 if np.isnan(avg_score) else avg_score,
@@ -75,7 +77,7 @@ async def report_gen(tz: str, drip: DataDrip):
         studio_link=studios_mode,
         current_year=datetime.now(timezone(tz)).year,
         rating_dist=rating_dist.to_json(orient="index"),
-        specials=special_animes_report(drip, tz_info)
+        specials=special_animes_report(drip)
     )
 
 
@@ -135,34 +137,7 @@ def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
     return updated_freq, updated_freq[col].cumsum()
 
 
-def rating_over_years(drip: DataDrip):
-    updated_at = drip.source[drip.list_status("updated_at")]
-
-    collected = drip.source[[drip.node("rating")]].groupby(
-        [updated_at.dt.year, updated_at.dt.month, drip.node("rating")]).value_counts().sort_index()
-
-    # https://myanimelist.net/forum/?topicid=2039350
-    ratings = ["pg", "pg_13", "g", "r", "r+", "rx"]
-
-    payload = dict(ratings=ratings, years=[], months=[], frames=[])
-
-    for year, month in zip(collected.index.get_level_values(0), collected.index.get_level_values(1)):
-        prev = payload["frames"][-1] if payload["frames"] else ([0] * len(ratings))
-        payload["years"].append(year)
-        payload["months"].append(month)
-        payload["frames"].append(
-            [
-                int(collected.get((year, month, rating), 0)) + prev[index]
-                for index, rating in enumerate(ratings)
-            ]
-        )
-
-    payload["max_y_range"] = max(payload["frames"][-1])
-
-    return payload
-
-
-def special_animes_report(drip: DataDrip, tzinfo: timezone):
+def special_animes_report(drip: DataDrip):
     progress_parameters = drip.node(
         "num_episodes"
     ), drip.list_status(
@@ -196,16 +171,16 @@ def special_animes_report(drip: DataDrip, tzinfo: timezone):
     # MOST RECENTLY UPDATED ANIME
     recent = drip.source.loc[drip.source[drip.list_status("updated_at")].idxmax()]
     recent_value = [recent.get(drip.list_status("updated_at")), "Updated Stamp"]
-    recent_value[0] = "NA" if not recent_value[0] else format_stamp(pandas.to_datetime(recent_value[0]))
+    recent_value[0] = "NA" if not recent_value[0] else format_stamp(recent_value[0])
 
     # TOP SCORED ANIME
     top = drip.source.loc[drip.source[drip.node("rank")].idxmin()]
     rank = str(top.get(drip.node("rank"))), "Rank"
 
     # OLDEST ANIME IN THE LIST
-    oldest = drip.source.loc[drip.source[drip.node("start_date")].astype("datetime64[ns]").idxmin()]
+    oldest = drip.source.loc[drip.source[drip.node("start_date")].idxmin()]
     start_date = [oldest.get(drip.node("start_date")), "Started at"]
-    start_date[0] = "NA" if not start_date[0] else format_stamp(pandas.to_datetime(start_date[0]))
+    start_date[0] = "NA" if not start_date[0] else format_stamp(start_date[0])
     # Mostly we don't need to apply timezone as the start date has no info about the time
 
     # ANIME THE USER HAS SPENT THE LONGEST TIME WITH
@@ -219,10 +194,10 @@ def special_animes_report(drip: DataDrip, tzinfo: timezone):
         watched_movies[drip.list_status("updated_at")].idxmax()]
     recent_movie_stamp = "" if recently_completed_movie is None else recently_completed_movie.get("updated_at", "")
     recent_movie_stamp = (
-        "NA" if not recent_movie_stamp else format_stamp(recent_movie_stamp.astimezone(tzinfo)), "Mostly Seen Movie"
+        "NA" if not recent_movie_stamp else format_stamp(recent_movie_stamp), "Mostly Seen Movie"
     )
 
-    for row, key, special in zip(
+    for entity, key, special in zip(
             (popular, recent, top, oldest, longest_spent),
             ("pop", "recent", "top", "oldest", "longest_spent", "recently_completed_movie"),
             (pop_value, recent_value, rank, start_date, spent, recent_movie_stamp)
@@ -230,25 +205,26 @@ def special_animes_report(drip: DataDrip, tzinfo: timezone):
     ):
         required = [
             (
-                format_stamp(pandas.to_datetime(row.get(_))) if row.get(_, "") else "NA"
+                format_stamp(pandas.to_datetime(entity.get(_))) if entity.get(_, "") else "NA"
             ) for _ in required_parameters[1:]
         ]
-        required.insert(0, int(row.get(required_parameters[0], "NA")))
+        fav_s = entity.get(required_parameters[0])
+        required.insert(0, int(fav_s) if fav_s else "NA")
 
         info = [
             (
-                format_stamp(pandas.to_datetime(row.get(_))) if row.get(_, "") else "NA"
+                format_stamp(pandas.to_datetime(entity.get(_))) if entity.get(_, "") else "NA"
             ) for _ in info_parameters[: -1]
         ]
 
         info.append(
-            format_stamp(pandas.to_datetime(row.get(info_parameters[-1])).astimezone(tzinfo), True)
-            if row.get(info_parameters[-1], "") else "NA"
+            format_stamp(pandas.to_datetime(entity.get(info_parameters[-1])), True)
+            if entity.get(info_parameters[-1], "") else "NA"
         )
 
         results[key] = dict(
-            general=[str(row.get(_, "")) for _ in general_parameters],
-            progress=[int(row.get(_, 0)) for _ in progress_parameters] + [row.get(drip.list_status("status"), "")],
+            general=[str(entity.get(_, "")) for _ in general_parameters],
+            progress=[int(entity.get(_, 0)) for _ in progress_parameters] + [entity.get(drip.list_status("status"), "")],
             required_parameters=required,
             special=special,
             info=info

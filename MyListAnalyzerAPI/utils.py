@@ -1,12 +1,12 @@
 import logging
-import typing
 import re
+import typing
 import xml.etree.ElementTree as Tree
-import pandas
-import numpy
 from datetime import datetime
-from MyListAnalyzerAPI.modals import bw_json_frame
+import numpy
+import pandas
 from pytz import timezone
+from MyListAnalyzerAPI.modals import bw_json_frame, default_time_zone
 
 
 def flat_me(bulge, safe):
@@ -40,25 +40,12 @@ class DataDrip:
             "num_days": self.source[self.list_status("spent")].sum()
         }
 
-    def purify(self):
-        self.source[self.list_status("spent")] = \
-            self.source[self.node("average_episode_duration")] * \
-            self.source[self.list_status("num_episodes_watched")] / 3600
-
-        self.genres = {}
-        index = self.node("genres")
-        self.source[index] = self.source[index].apply(lambda x: flat_me(x, self.genres))
-
-        self.studios = {}
-        index = self.node("studios")
-        self.source[index] = self.source[index].apply(lambda x: flat_me(x, self.studios))
-
     @property
     def source(self):
         return self.__source
 
     @classmethod
-    def from_api(cls, raw: list, fix=False):
+    def from_api(cls, raw: list, tz: str = None, fix=False):
         raw = DataDrip(
             pandas.json_normalize(raw, sep=DataDrip.sep)
         )  # its default but to note
@@ -72,7 +59,7 @@ class DataDrip:
         # pandas.to_datetime(raw.source.list_status("updated_at"), utc=True, unit="ms").dt.tz_convert(time_zone)
 
         raw.source.set_index(raw.node("id"))
-        raw.purify() if fix else ...
+        raw.purify(timezone(tz) if tz else default_time_zone) if fix else ...
 
         return raw
 
@@ -101,12 +88,48 @@ class DataDrip:
     def list_status(self, *args):
         return self.__getitem__(("list_status", *args))
 
-    def prepare_time_stamps(self, tz):
-        updated_at = self.list_status("updated_at")
+    def purify(self, tz):
+        self.source[self["list_status", "spent"]] = \
+            self.source[self["node", "average_episode_duration"]] * \
+            self.source[self["list_status", "num_episodes_watched"]] / 3600
 
-        self.source[updated_at] = pandas.to_datetime(
-            updated_at, utc=True, unit=self.unit
-        ).dt.tz_convert(tz)
+        self.genres = {}
+        self.studios = {}
+        genre = self.node("genres")
+        studio = self.node("studios")
+        updated_at = self.list_status("updated_at")
+        start_date = self.node("start_date")
+        finish_date = self.node("end_date")
+        _time = self.node("broadcast", "start_time")
+
+        self.source[genre], self.source[studio], self.source[updated_at], self.source[start_date], self.source[
+            finish_date] = zip(
+            *self.source.apply(self.purification, args=(
+                tz, genre, studio, updated_at, start_date, finish_date, _time), axis=1)
+        )
+        self.source.drop(_time, axis=1, inplace=True)
+
+    def purification(self, row, tz, genre, studio, updated_at, start_date, finish_date, __time):
+        # ROW WISE
+        _time = row[__time]
+
+        results = [
+            flat_me(row[genre], self.genres),
+            flat_me(row[studio], self.studios),
+            str(pandas.to_datetime(row[updated_at], utc=True).astimezone(tz).replace(tzinfo=None))
+        ]
+
+        for from_jst in (row[start_date], row[finish_date]):
+            if pandas.isnull(from_jst) or pandas.isnull(_time):
+                results.append(from_jst if pandas.isnull(_time) else numpy.nan)
+                continue
+
+            b_date, b_time = datetime.strptime(from_jst, "%Y-%m-%d").date(), datetime.strptime(_time, "%H:%M").time()
+            results.append(
+                str(datetime.combine(b_date, b_time, tzinfo=timezone("Asia/Tokyo")).astimezone(tz).replace(
+                    tzinfo=None)))
+
+        return results
 
 
 class XMLParser:

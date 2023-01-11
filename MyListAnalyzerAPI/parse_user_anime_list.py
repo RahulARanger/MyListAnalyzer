@@ -11,8 +11,8 @@ from MyListAnalyzerAPI.utils import XMLParser
 ROUTES = dict(Overview=general_report, Recently=process_recent_animes_by_episodes)
 
 
-def understand_user_anime_list(raw: typing.Union[typing.List, typing.Dict]):
-    return DataDrip.from_api(raw, True) if isinstance(raw, list) else DataDrip.from_raw(raw)
+def understand_user_anime_list(raw: typing.Union[typing.List, typing.Dict], tz: str):
+    return DataDrip.from_api(raw, tz, True) if isinstance(raw, list) else DataDrip.from_raw(raw)
 
 
 async def _fetch_recent_animes(user_name, time_zone):
@@ -27,7 +27,7 @@ async def parse_user_anime_list(request: Request):
     details = ProcessUserDetails(**await request.json())
     try:
         return JSONResponse(
-            content=dict(user_anime_list=understand_user_anime_list(details.data)())
+            content=dict(user_anime_list=understand_user_anime_list(details.data, details.timezone)())
         )
     except Exception as error:
         logging.exception("Failed to parse User Anime List", exc_info=True)
@@ -58,7 +58,7 @@ async def fetch_recent_animes(request: Request):
 async def give_over_view(request: Request):
     try:
         details = ProcessUserDetails(**await request.json())
-        drip = understand_user_anime_list(details.data)
+        drip = understand_user_anime_list(details.data, details.timezone)
         content = await general_report(details.timezone, drip)
         return JSONResponse(
             content=content
