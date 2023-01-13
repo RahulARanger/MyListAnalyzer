@@ -54,5 +54,6 @@ class MALSession(httpx.AsyncClient):
 
         for row in _raw:
             row["node"].get("main_picture", dict(medium="")).pop("medium")
+            row["node"].get("broadcast", dict(day_of_the_week="")).pop("day_of_the_week")
 
         return dict(raw=_raw, next_page=next_page, user_name=user_name)

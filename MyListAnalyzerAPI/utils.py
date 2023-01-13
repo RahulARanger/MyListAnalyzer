@@ -124,7 +124,13 @@ class DataDrip:
                 results.append(from_jst if pandas.isnull(_time) else numpy.nan)
                 continue
 
-            b_date, b_time = datetime.strptime(from_jst, "%Y-%m-%d").date(), datetime.strptime(_time, "%H:%M").time()
+            try:
+                b_date, b_time = datetime.strptime(from_jst, "%Y-%m-%d").date(), datetime.strptime(_time, "%H:%M").time()
+            except ValueError:
+                # MOSTLY BECAUSE OF THE YET TO AIR ANIMES (since they are of form: year-month (2023-04)
+                results.append(from_jst)
+                continue
+
             results.append(
                 str(datetime.combine(b_date, b_time, tzinfo=timezone("Asia/Tokyo")).astimezone(tz).replace(
                     tzinfo=None)))

@@ -15,19 +15,36 @@ def list_status(drip: DataDrip):
     return collected
 
 
-def not_finished_airing(drip: DataDrip):
-    watchers = drip.node("status")
-    l_s = drip.list_status("status")
-    name = drip.node("title")
+def airing_status(drip: DataDrip):
+    title = drip.node("title")
+    watched = drip.list_status("num_episodes_watched")
+    total = drip.node("num_episodes")
+    updated_at = drip.list_status("updated_at")
+    source = drip.node("source")
+    a_status = drip.node("status")
+    picture = drip.node("main_picture", "large")
+    status = drip.list_status("status")
+    start_date = drip.node("start_date")
+    l_start_date = drip.list_status("start_date")
 
-    # we don't need finished ones
-    status_maps = pandas.DataFrame(drip.source[[l_s, watchers, name]][drip.source[watchers] != "finished_airing"])
-    currently_airing = status_maps[status_maps[watchers] == "currently_airing"]
+    sliced = drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
+        drip.source[a_status] == "currently_airing"].sort_values(status)
+
+    start_dates = pandas.to_datetime(sliced.pop(start_date))
+    sliced["day"] = start_dates.dt.day_name()
+    sliced["time"] = start_dates.dt.strftime("%H:%M")
+    sliced["date"] = format_stamp(start_dates.dt)
+    sliced[l_start_date] = format_stamp(pandas.to_datetime(sliced[l_start_date]).dt)
+
+    sliced.to_json(orient="split")
+
+    _id = drip.node("id")
+    _slice = drip.source[_id][drip.source[a_status] == "not_yet_aired"]
 
     return (
-        int((status_maps[watchers] == "not_yet_aired").shape[0]),
-        currently_airing.loc[:, l_s].value_counts(),
-        currently_airing.loc[:, [name, l_s]])
+        int(_slice.shape[0]),
+        sliced.to_json(orient="split")
+    )
 
 
 async def report_gen(tz: str, drip: DataDrip):
@@ -39,7 +56,7 @@ async def report_gen(tz: str, drip: DataDrip):
     status = list_status(drip)
     ep_range = extract_ep_bins(drip)
 
-    not_yet_aired, currently_airing, animes_airing = not_finished_airing(drip)
+    not_yet_aired, animes_airing = airing_status(drip)
 
     hrs_spent = float(drip.source[drip.list_status("spent")].sum())
 
@@ -68,7 +85,6 @@ async def report_gen(tz: str, drip: DataDrip):
         ],
         row_2=status[status.index != "watching"].to_json(orient="split"),
         ep_range=ep_range.to_json(orient="columns"),
-        status_for_currently_airing=currently_airing.to_json(orient="split"),
         mostly_seen_genre=drip.genres[genres_mode],
         mostly_seen_studio=drip.studios[studios_mode],
         avg_score=0 if np.isnan(avg_score) else avg_score,
@@ -77,7 +93,8 @@ async def report_gen(tz: str, drip: DataDrip):
         studio_link=studios_mode,
         current_year=datetime.now(timezone(tz)).year,
         rating_dist=rating_dist.to_json(orient="index"),
-        specials=special_animes_report(drip)
+        specials=special_animes_report(drip),
+        currently_airing_animes=animes_airing
     )
 
 
