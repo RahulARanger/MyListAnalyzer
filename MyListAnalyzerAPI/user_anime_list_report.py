@@ -27,6 +27,10 @@ def airing_status(drip: DataDrip):
     start_date = drip.node("start_date")
     l_start_date = drip.list_status("start_date")
 
+    if l_start_date not in drip.source.columns:
+        # in case if user has no start date for at least one of the animes in the list
+        drip.source[l_start_date] = np.nan
+
     sliced = drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
         drip.source[a_status] == "currently_airing"].sort_values(status)
 
@@ -84,7 +88,7 @@ async def report_gen(tz: str, drip: DataDrip):
             [hrs_spent / 24, "Time spent (days)"]
         ],
         row_2=status[status.index != "watching"].to_json(orient="split"),
-        ep_range=ep_range.to_json(orient="columns"),
+        ep_range=ep_range.to_json(orient="index"),
         mostly_seen_genre=drip.genres[genres_mode],
         mostly_seen_studio=drip.studios[studios_mode],
         avg_score=0 if np.isnan(avg_score) else avg_score,
@@ -117,11 +121,10 @@ def extract_ep_bins(drip: DataDrip):
         ep_range_bin_labels, ep_range, right_on=ep_range.index, left_on=ep_range_bin_labels.index, how="left",
         suffixes=("_", "_actual")
     )
-    extracted["color"] = extracted.ep_range == extracted.ep_range.max()
 
-    # so result {"index": [...bins, "colors"], "data": [...bin_values, ["red", ... "orange"]]}
-
-    return extracted.loc[:, ["key_0", "color", "ep_range"]]
+    # so result {"index": [...bins], "data": [...bin_values]}
+    extracted.set_index("key_0", inplace=True, drop=True)
+    return extracted.loc[:, "ep_range"]
 
 
 async def process_recent_animes_by_episodes(
@@ -173,7 +176,7 @@ def special_animes_report(drip: DataDrip):
 
     general_parameters = drip.node(
         "title"
-    ), drip.node("id"), drip.node("main_picture.large")
+    ), drip.node("id"), drip.node("main_picture", "large")
 
     info_parameters = drip.list_status(
         "start_date"
@@ -230,7 +233,7 @@ def special_animes_report(drip: DataDrip):
 
         info = [
             (
-                format_stamp(pandas.to_datetime(entity.get(_))) if entity.get(_, "") else "NA"
+                format_stamp(pandas.to_datetime(entity.get(_))) if not pandas.isnull(entity.get(_, np.nan)) else "NA"
             ) for _ in info_parameters[: -1]
         ]
 
