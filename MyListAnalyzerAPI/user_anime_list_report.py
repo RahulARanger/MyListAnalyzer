@@ -1,10 +1,11 @@
 import statistics as stat
+import typing
 from datetime import datetime
 import numpy
 import numpy as np
 import pandas
 from pytz import timezone
-from MyListAnalyzerAPI.modals import ep_range_bin, bw_json_frame, rating
+from MyListAnalyzerAPI.modals import ep_range_bin, rating
 from MyListAnalyzerAPI.utils import DataDrip, format_stamp
 
 
@@ -130,18 +131,33 @@ def extract_ep_bins(drip: DataDrip):
 async def process_recent_animes_by_episodes(
         recent_animes: pandas.DataFrame
 ):
-    recently_updated_at = recent_animes.updated_at.max().timestamp()
+    week_days, week_dist, first_record, recent_record = parse_weekly(recent_animes)
 
     grouped_by_updated_at = recent_animes.iloc[:, 3:]
 
-    recently_updated_day_wise, recently_updated_cum_sum = recently_updated_freq(
+    recently_updated_day_wise = recently_updated_freq(
         grouped_by_updated_at, "difference")
 
     return dict(
-        recently_updated_at=recently_updated_at,
+        first_record=first_record.timestamp(), recent_record=recent_record.timestamp(),
+        week_days=week_days, week_dist=week_dist,
         recently_updated_day_wise=recently_updated_day_wise.T.to_json(orient="split"),
-        recently_updated_cum_sum=recently_updated_cum_sum.to_list()
+        special_results=special_results_for_recent_animes(recent_animes)
     )
+
+
+def parse_weekly(recent_animes: pandas.DataFrame):
+    sliced = recent_animes.loc[:, ["updated_at", "difference"]].groupby(
+        recent_animes.updated_at.dt.day_of_week).difference.sum()
+
+    weeks = pandas.Series(0, index=numpy.arange(7), name="_w")
+    sliced = pandas.merge(weeks, sliced, left_on=weeks.index, right_on=sliced.index, how="left")
+
+    first_record = recent_animes.updated_at.min()
+    recent_record = recent_animes.updated_at.max()
+
+    dist = tuple(busy_day_count(first_record.date(), (recent_record + pandas.Timedelta(days=1)).date()))
+    return dist, sliced.difference.to_json(orient="values"), first_record, recent_record
 
 
 def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
@@ -154,7 +170,7 @@ def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
         ]
     ).sum(col)
 
-    return updated_freq, updated_freq[col].cumsum()
+    return updated_freq
 
 
 def special_animes_report(drip: DataDrip):
@@ -244,10 +260,66 @@ def special_animes_report(drip: DataDrip):
 
         results[key] = dict(
             general=[str(entity.get(_, "")) for _ in general_parameters],
-            progress=[int(entity.get(_, 0)) for _ in progress_parameters] + [entity.get(drip.list_status("status"), "")],
+            progress=[int(entity.get(_, 0)) for _ in progress_parameters] + [
+                entity.get(drip.list_status("status"), "")],
             required_parameters=required,
             special=special,
             info=info
         )
+
+    return results
+
+
+def busy_day_count(start_date, end_date) -> typing.List[int]:
+    """
+    Returns the Distribution of week days from start date and end date
+    :param start_date: start_date is included
+    :param end_date: end_date is excluded
+    :return:
+    """
+    weeks = numpy.zeros(7)
+
+    for index in range(weeks.size):
+        weeks[index] += 1
+        yield int(numpy.busday_count(start_date, end_date, weekmask=weeks))
+        weeks[index] -= 1
+
+
+def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
+    anime_first_updated = recent_animes.groupby("id").first()
+    anime_last_updated = recent_animes.groupby("id").last()
+    results = dict(recent=str(recent_animes.iloc[-1].id))
+
+    for _status in ("Watching", "Completed", "Dropped"):
+        sliced = recent_animes[recent_animes.status == _status]
+        if sliced.empty:
+            continue
+
+        results[_status] = sliced.iloc[-1].to_json(orient="values")
+
+    sliced = recent_animes.id.value_counts()[::-1]
+    results["many_records"] = dict(
+        mode=int(sliced.max()),
+        anime=recent_animes[recent_animes.id == sliced.idxmax()].iloc[-1].to_json(orient="values")
+    )
+
+    results["most_updated"] = recent_animes.iloc[recent_animes.loc[::-1].difference.idxmax()].to_json(orient="values")
+
+    anime_id = (anime_last_updated.updated_at - anime_first_updated.updated_at).idxmax()
+
+    results["long_time"] = dict(
+        anime=anime_first_updated.loc[anime_id].to_json(orient="values"),
+        time_took=str(anime_last_updated.loc[anime_id, "updated_at"] - anime_first_updated.loc[anime_id, "updated_at"]),
+        id=str(anime_id)
+    )
+
+    re_ = anime_last_updated.loc[::-1]
+    the_one = (anime_last_updated.total - anime_first_updated.up_until).idxmax()
+    results["large_change"] = dict(
+        anime=re_.loc[the_one].to_json(orient="values"),
+        id=str(the_one)
+    )
+
+    results["longest_title"] = recent_animes.iloc[recent_animes.title.str.len().idxmax()].to_json(orient="values")
 
     return results
