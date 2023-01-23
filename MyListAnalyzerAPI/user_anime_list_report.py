@@ -33,7 +33,7 @@ def airing_status(drip: DataDrip):
         drip.source[l_start_date] = np.nan
 
     sliced = drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
-        drip.source[a_status] == "currently_airing"].sort_values(status)
+        drip.source[a_status] == "currently_airing"].head(10).sort_values(status)
 
     start_dates = pandas.to_datetime(sliced.pop(start_date))
     sliced["day"] = start_dates.dt.day_name()
