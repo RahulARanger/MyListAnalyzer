@@ -290,7 +290,7 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
     anime_last_updated = recent_animes.groupby("id").last()
     results = dict(recent=str(recent_animes.iloc[-1].id))
 
-    for _status in ("Watching", "Completed", "Dropped"):
+    for _status in ("Watching", "Completed", "Dropped", "Hold"):
         sliced = recent_animes[recent_animes.status == _status]
         if sliced.empty:
             continue
