@@ -288,38 +288,47 @@ def busy_day_count(start_date, end_date) -> typing.List[int]:
 def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
     anime_first_updated = recent_animes.groupby("id").first()
     anime_last_updated = recent_animes.groupby("id").last()
-    results = dict(recent=str(recent_animes.iloc[-1].id))
+    response = dict(recent=str(recent_animes.iloc[-1].id))
 
     for _status in ("Watching", "Completed", "Dropped", "Hold"):
-        sliced = recent_animes[recent_animes.status == _status]
+        sliced = anime_last_updated[anime_last_updated.status == _status]
         if sliced.empty:
             continue
 
-        results[_status] = sliced.iloc[-1].to_json(orient="values")
+        response[_status] = dict(anime=sliced.iloc[0].to_json(orient="values"), id=str(sliced.index[0]))
 
     sliced = recent_animes.id.value_counts()[::-1]
-    results["many_records"] = dict(
+    anime_id = sliced.idxmax()
+    response["many_records"] = dict(
         mode=int(sliced.max()),
-        anime=recent_animes[recent_animes.id == sliced.idxmax()].iloc[-1].to_json(orient="values")
+        anime=anime_last_updated.loc[anime_id].to_json(orient="values"),
+        id=str(anime_id)
     )
 
-    results["most_updated"] = recent_animes.iloc[recent_animes.loc[::-1].difference.idxmax()].to_json(orient="values")
+    # recent animes index is not ID
+    record = recent_animes.iloc[recent_animes.difference.idxmax()]
+    response["most_updated"] = dict(
+        anime=anime_last_updated.loc[record.id].to_json(orient="values"),
+        id=str(record.id), stamp=format_stamp(record.updated_at, also_for_time=True)
+    )
 
     anime_id = (anime_last_updated.updated_at - anime_first_updated.updated_at).idxmax()
 
-    results["long_time"] = dict(
-        anime=anime_first_updated.loc[anime_id].to_json(orient="values"),
+    response["long_time"] = dict(
+        anime=anime_last_updated.loc[anime_id].to_json(orient="values"),
         time_took=str(anime_last_updated.loc[anime_id, "updated_at"] - anime_first_updated.loc[anime_id, "updated_at"]),
         id=str(anime_id)
     )
 
-    re_ = anime_last_updated.loc[::-1]
     the_one = (anime_last_updated.total - anime_first_updated.up_until).idxmax()
-    results["large_change"] = dict(
-        anime=re_.loc[the_one].to_json(orient="values"),
+    response["large_change"] = dict(
+        anime=anime_last_updated.loc[the_one].to_json(orient="values"),
         id=str(the_one)
     )
 
-    results["longest_title"] = recent_animes.iloc[recent_animes.title.str.len().idxmax()].to_json(orient="values")
+    anime_id = recent_animes.iloc[recent_animes.title.str.len().idxmax()].id
+    response["longest_title"] = dict(
+        anime=anime_last_updated.loc[anime_id].to_json(orient="values"), id=str(anime_id)
+    )
 
-    return results
+    return response
