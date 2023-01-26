@@ -31,7 +31,9 @@ class MALSession(httpx.AsyncClient):
         else:
             return _resp["name"], ""
 
-    async def fetch_list(self, user_name, token=None, embed_url=None, sort_order="list_updated_at", offset=0, limit=1e3):
+    async def fetch_list(
+            self, user_name, token=None, embed_url=None, sort_order="list_updated_at", offset=0, limit=1e3, nsfw=False
+    ):
         self.set_headers(token)
         fields = "genres,list_status{start_date,finish_date,num_times_rewatched,rewatch_value,priority,score}," \
                  "start_date,end_date,mean,rank,popularity,created_at,updated_at,num_episodes,media_type,source," \
@@ -42,7 +44,8 @@ class MALSession(httpx.AsyncClient):
                 "sort": sort_order,
                 "fields": fields,
                 "offset": offset,
-                "limit": limit
+                "limit": limit,
+                "nsfw": nsfw
             }
         ) if not embed_url else self.get(embed_url)
 

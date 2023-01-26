@@ -306,11 +306,8 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
     )
 
     # recent animes index is not ID
-    record = recent_animes.iloc[recent_animes.difference.idxmax()]
-    response["most_updated"] = dict(
-        anime=anime_last_updated.loc[record.id].to_json(orient="values"),
-        id=str(record.id), stamp=format_stamp(record.updated_at, also_for_time=True)
-    )
+    record = recent_animes.iloc[recent_animes.difference[::-1].idxmax()]
+    response["most_updated"] = record.to_json(orient="values")
 
     anime_id = (anime_last_updated.updated_at - anime_first_updated.updated_at).idxmax()
 
@@ -320,8 +317,8 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
         id=str(anime_id)
     )
 
-    the_one = (anime_last_updated.total - anime_first_updated.up_until).idxmax()
-    response["large_change"] = dict(
+    the_one = (anime_last_updated.total - anime_last_updated.up_until).idxmax()
+    response["still"] = dict(
         anime=anime_last_updated.loc[the_one].to_json(orient="values"),
         id=str(the_one)
     )

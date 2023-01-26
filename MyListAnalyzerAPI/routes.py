@@ -1,3 +1,5 @@
+import logging
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
@@ -28,20 +30,22 @@ async def fetch_user_anime_list(request: Request):
     token = request.headers.get("token", "")
     user_name = "@me"
     reason = False
-    results = dict(user_name=user_name)
+    is_nsfw = request.headers.get("nsfw", False)
+    user_content = dict(user_name=user_name)
 
     try:
         temp = ForUserAnimeList(**request.query_params)
         user_name = temp.user_name if temp.user_name else user_name
-        results.update(user_name=user_name)
-        results.update(await MALSession().fetch_list(user_name, token, temp.url))
+        user_content.update(user_name=user_name)
+        user_content.update(await MALSession().fetch_list(user_name, token, temp.url, nsfw=is_nsfw))
     except Exception as error:
         reason = repr(error)
+        logging.exception("Failed to fetch the User Anime List", exc_info=True)
 
     failed = bool(reason)
 
     return JSONResponse(
-        content=dict(passed=not failed, reason=reason, **results),
+        content=dict(passed=not failed, reason=reason, **user_content),
         status_code=406 if failed else 200
     )
 
