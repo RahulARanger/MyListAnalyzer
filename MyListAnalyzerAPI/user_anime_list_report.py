@@ -6,7 +6,7 @@ import numpy as np
 import pandas
 from pytz import timezone
 from MyListAnalyzerAPI.modals import ep_range_bin, rating
-from MyListAnalyzerAPI.utils import DataDrip, format_stamp
+from MyListAnalyzerAPI.utils import DataDrip, format_stamp, format_rank
 
 
 def list_status(drip: DataDrip):
@@ -202,7 +202,7 @@ def special_animes_report(drip: DataDrip):
 
     # MOST POPULAR ANIME
     popular = drip.source.loc[drip.source[drip.node("popularity")].idxmin()]
-    pop_value = str(popular.get(drip.node("popularity"))), "Popularity Rank"
+    pop_value = format_rank(popular.get(drip.node("popularity"))), "Popularity Rank"
 
     # MOST RECENTLY UPDATED ANIME
     recent = drip.source.loc[drip.source[drip.list_status("updated_at")].idxmax()]
@@ -211,7 +211,7 @@ def special_animes_report(drip: DataDrip):
 
     # TOP SCORED ANIME
     top = drip.source.loc[drip.source[drip.node("rank")].idxmin()]
-    rank = str(top.get(drip.node("rank"))), "Rank"
+    rank = format_rank(top.get(drip.node("rank"))), "Rank"
 
     # OLDEST ANIME IN THE LIST
     oldest = drip.source.loc[drip.source[drip.node("start_date")].idxmin()]

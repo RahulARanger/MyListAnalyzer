@@ -217,3 +217,12 @@ class XMLParser:
 
 def format_stamp(date, also_for_time=False):
     return date.strftime("%b %d, %Y" if not also_for_time else "%b %d, %Y %H:%M")
+
+
+def format_rank(rank):
+    n = int(rank)
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    else:
+        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    return str(n) + suffix
