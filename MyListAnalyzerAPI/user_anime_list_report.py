@@ -32,27 +32,27 @@ def airing_status(drip: DataDrip):
         # in case if user has no start date for at least one of the animes in the list
         drip.source[l_start_date] = np.nan
 
-    sliced = drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
+    start_dt = drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
         drip.source[a_status] == "currently_airing"].head(10).sort_values(status)
 
-    start_dates = pandas.to_datetime(sliced.pop(start_date))
-    sliced["day"] = start_dates.dt.day_name()
-    sliced["time"] = start_dates.dt.strftime("%H:%M")
-    sliced["date"] = format_stamp(start_dates.dt)
-    sliced[l_start_date] = format_stamp(pandas.to_datetime(sliced[l_start_date]).dt)
+    start_dates = pandas.to_datetime(start_dt.pop(start_date))
+    start_dt["day"] = start_dates.dt.day_name()
+    start_dt["time"] = start_dates.dt.strftime("%H:%M")
+    start_dt["date"] = format_stamp(start_dates.dt)
+    start_dt[l_start_date] = format_stamp(pandas.to_datetime(start_dt[l_start_date]).dt)
 
-    sliced.to_json(orient="split")
+    start_dt.to_json(orient="split")
 
     _id = drip.node("id")
     _slice = drip.source[_id][drip.source[a_status] == "not_yet_aired"]
 
     return (
         int(_slice.shape[0]),
-        sliced.to_json(orient="split")
+        start_dt.to_json(orient="split")
     )
 
 
-async def report_gen(tz: str, drip: DataDrip):
+async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
     # PRE REQUISITES
     for dates in (drip.list_status("updated_at"), drip.node("start_date")):
         drip.source[dates] = pandas.to_datetime(drip.source[dates])
@@ -99,7 +99,8 @@ async def report_gen(tz: str, drip: DataDrip):
         current_year=datetime.now(timezone(tz)).year,
         rating_dist=rating_dist.to_json(orient="index"),
         specials=special_animes_report(drip),
-        currently_airing_animes=animes_airing
+        currently_airing_animes=animes_airing,
+        nsfw=False if not include_nsfw else drip.source[drip.node("nsfw")].value_counts().to_json(orient="split")
     )
 
 
@@ -296,6 +297,11 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
             continue
 
         response[_status] = dict(anime=sliced.iloc[0].to_json(orient="values"), id=str(sliced.index[0]))
+
+    anime_id = anime_last_updated.total.idxmax()
+    response["longest"] = dict(
+        anime=anime_last_updated.loc[anime_id].to_json(orient="values"), id=str(anime_id)
+    )
 
     sliced = recent_animes.id.value_counts()[::-1]
     anime_id = sliced.idxmax()

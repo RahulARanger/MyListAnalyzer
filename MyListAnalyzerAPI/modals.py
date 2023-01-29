@@ -9,6 +9,7 @@ class ProcessUserDetails:
     user_name: str
     timezone: typing.Optional[str] = default_time_zone
     data: typing.Optional[typing.Union[typing.List, typing.Dict]] = None
+    nsfw: typing.Optional[bool] = False
 
 
 @dataclass

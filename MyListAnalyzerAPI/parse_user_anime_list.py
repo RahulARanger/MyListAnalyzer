@@ -57,9 +57,9 @@ async def fetch_recent_animes(request: Request):
 
 async def give_over_view(request: Request):
     try:
-        details = ProcessUserDetails(**await request.json())
-        drip = understand_user_anime_list(details.data, details.timezone)
-        content = await general_report(details.timezone, drip)
+        raw = ProcessUserDetails(**await request.json())
+        drip = understand_user_anime_list(raw.data, raw.timezone)
+        content = await general_report(raw.timezone, drip, raw.nsfw)
         return JSONResponse(
             content=content
         )
