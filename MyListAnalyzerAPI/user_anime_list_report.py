@@ -32,7 +32,8 @@ def airing_status(drip: DataDrip):
         # in case if user has no start date for at least one of the animes in the list
         drip.source[l_start_date] = np.nan
 
-    start_dt = drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
+    start_dt = \
+    drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
         drip.source[a_status] == "currently_airing"].head(10).sort_values(status)
 
     start_dates = pandas.to_datetime(start_dt.pop(start_date))
@@ -72,8 +73,10 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
     watched = int(drip.source[drip.list_status("num_episodes_watched")].sum())
     avg_score = drip.source[score_index][drip.source[score_index] > 0].mean()
 
-    rating_dist = drip.source[drip.node("rating")].value_counts().convert_dtypes()
+    rating_dist = drip.source[drip.node("rating")].value_counts().convert_dtypes()  # float to int
     rating_dist.index = rating_dist.index.map(rating)
+
+    media_dist = drip.source[drip.node("media_type")].value_counts().convert_dtypes()  # float to int
 
     return dict(
         row_1=dict(
@@ -96,8 +99,8 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
         eps_watched=watched,
         genre_link=genres_mode,
         studio_link=studios_mode,
-        current_year=datetime.now(timezone(tz)).year,
         rating_dist=rating_dist.to_json(orient="index"),
+        media_dist=media_dist.to_json(orient="index"),
         specials=special_animes_report(drip),
         currently_airing_animes=animes_airing,
         nsfw=False if not include_nsfw else drip.source[drip.node("nsfw")].value_counts().to_json(orient="split")
@@ -175,13 +178,14 @@ def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):
 
 
 def special_animes_report(drip: DataDrip):
+    updated_at = drip.list_status("updated_at")
+    spent = drip.list_status("spent")
+
     progress_parameters = drip.node(
         "num_episodes"
     ), drip.list_status(
         "num_episodes_watched"
-    ), drip.list_status(
-        "spent"
-    )
+    ), spent
 
     required_parameters = drip.node(
         "num_favorites"
@@ -197,7 +201,7 @@ def special_animes_report(drip: DataDrip):
 
     info_parameters = drip.list_status(
         "start_date"
-    ), drip.list_status("finish_date"), drip.list_status("updated_at")
+    ), drip.list_status("finish_date"), updated_at
 
     results = {}
 
@@ -206,8 +210,8 @@ def special_animes_report(drip: DataDrip):
     pop_value = format_rank(popular.get(drip.node("popularity"))), "Popularity Rank"
 
     # MOST RECENTLY UPDATED ANIME
-    recent = drip.source.loc[drip.source[drip.list_status("updated_at")].idxmax()]
-    recent_value = [recent.get(drip.list_status("updated_at")), "Updated Stamp"]
+    recent = drip.source.loc[drip.source[updated_at].idxmax()]
+    recent_value = [recent.get(updated_at), "Updated Stamp"]
     recent_value[0] = "NA" if not recent_value[0] else format_stamp(recent_value[0])
 
     # TOP SCORED ANIME
@@ -221,21 +225,21 @@ def special_animes_report(drip: DataDrip):
     # Mostly we don't need to apply timezone as the start date has no info about the time
 
     # ANIME THE USER HAS SPENT THE LONGEST TIME WITH
-    longest_spent = drip.source.loc[drip.source[drip.list_status("spent")].idxmax()]
-    spent = f"{float(longest_spent.get(drip.list_status('spent')))} hrs", "Longest Time Spent"
+    longest_spent = drip.source.loc[drip.source[spent].idxmax()]
+    spent = f"{float(longest_spent.get(spent))} hrs", "Longest Time Spent"
 
     # RECENTLY COMPLETED MOVIE
     watched_movies = drip.source[
         (drip.source[drip.node("media_type")] == "movie") & (drip.source[drip.list_status("status")] == "completed")]
     recently_completed_movie = None if watched_movies.empty else watched_movies.loc[
-        watched_movies[drip.list_status("updated_at")].idxmax()]
-    recent_movie_stamp = "" if recently_completed_movie is None else recently_completed_movie.get("updated_at", "")
+        watched_movies[updated_at].idxmax()]
+    recent_movie_stamp = "" if recently_completed_movie is None else recently_completed_movie.get(updated_at)
     recent_movie_stamp = (
         "NA" if not recent_movie_stamp else format_stamp(recent_movie_stamp), "Mostly Seen Movie"
     )
 
     for entity, key, special in zip(
-            (popular, recent, top, oldest, longest_spent),
+            (popular, recent, top, oldest, longest_spent, recently_completed_movie),
             ("pop", "recent", "top", "oldest", "longest_spent", "recently_completed_movie"),
             (pop_value, recent_value, rank, start_date, spent, recent_movie_stamp)
 
