@@ -29,10 +29,15 @@ date_unit = "ms"
 
 
 rating = {
-    'g': "All Ages",
-    "pg": "Children",
-    "pg_13": "Teens 13 or Older",
-    "r": "17+ (violence & profanity)",
-    "r+": "Mild Nudity",
-    "rx": "Hentai"
+    'g': 0,
+    "pg": 1,
+    "pg_13": 2,
+    "r": 3,
+    "r+": 4,
+    "rx": 5,
+    "-": 6
 }
+
+decode_rating = ["All", "Children", "13+", "17+", "Mild Nudity", "Hentai", "Unknown"]
+media_type = {"movie": 0, "music": 1, "ona": 2, "ova": 3, "special": 4, "tv": 5, "unknown": 6}
+decode_media_type = ["Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown"]

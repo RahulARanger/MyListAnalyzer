@@ -1,5 +1,6 @@
 import os
 import httpx
+from MyListAnalyzerAPI.modals import rating, media_type
 
 
 class MALSession(httpx.AsyncClient):
@@ -58,5 +59,7 @@ class MALSession(httpx.AsyncClient):
         for row in _raw:
             row["node"].get("main_picture", dict(medium="")).pop("medium")
             row["node"].get("broadcast", dict(day_of_the_week="")).pop("day_of_the_week")
+            row["node"]["rating"] = rating[row["node"].get("rating", "-")]
+            row["node"]["media_type"] = media_type[row["node"].get("media_type", "unknown")]
 
         return dict(raw=_raw, next_page=next_page, user_name=user_name)

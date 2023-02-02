@@ -1,11 +1,9 @@
 import statistics as stat
 import typing
-from datetime import datetime
 import numpy
 import numpy as np
 import pandas
-from pytz import timezone
-from MyListAnalyzerAPI.modals import ep_range_bin, rating
+from MyListAnalyzerAPI.modals import ep_range_bin, decode_rating, decode_media_type, media_type
 from MyListAnalyzerAPI.utils import DataDrip, format_stamp, format_rank
 
 
@@ -22,7 +20,7 @@ def airing_status(drip: DataDrip):
     total = drip.node("num_episodes")
     updated_at = drip.list_status("updated_at")
     source = drip.node("source")
-    a_status = drip.node("status")
+    state_dict = drip.node("status")
     picture = drip.node("main_picture", "large")
     status = drip.list_status("status")
     start_date = drip.node("start_date")
@@ -33,8 +31,8 @@ def airing_status(drip: DataDrip):
         drip.source[l_start_date] = np.nan
 
     start_dt = \
-    drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
-        drip.source[a_status] == "currently_airing"].head(10).sort_values(status)
+        drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
+            drip.source[state_dict] == "currently_airing"].head(10).sort_values(status)
 
     start_dates = pandas.to_datetime(start_dt.pop(start_date))
     start_dt["day"] = start_dates.dt.day_name()
@@ -45,7 +43,7 @@ def airing_status(drip: DataDrip):
     start_dt.to_json(orient="split")
 
     _id = drip.node("id")
-    _slice = drip.source[_id][drip.source[a_status] == "not_yet_aired"]
+    _slice = drip.source[_id][drip.source[state_dict] == "not_yet_aired"]
 
     return (
         int(_slice.shape[0]),
@@ -74,9 +72,10 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
     avg_score = drip.source[score_index][drip.source[score_index] > 0].mean()
 
     rating_dist = drip.source[drip.node("rating")].value_counts().convert_dtypes()  # float to int
-    rating_dist.index = rating_dist.index.map(rating)
+    rating_dist.index = rating_dist.index.map(pandas.Series(decode_rating))
 
     media_dist = drip.source[drip.node("media_type")].value_counts().convert_dtypes()  # float to int
+    media_dist.index = media_dist.index.map(pandas.Series(decode_media_type))
 
     return dict(
         row_1=dict(
@@ -108,19 +107,19 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
 
 
 def extract_ep_bins(drip: DataDrip):
-    ep = drip.node("num_episodes")
+    df = drip.node("num_episodes")
 
     # animes of 0 episodes are excluded maybe those are planned to be aired.
 
-    ep_range = pandas.DataFrame(drip.source[[ep]][drip.source[ep] != 0])
+    ep_range = pandas.DataFrame(drip.source[[df]][drip.source[df] != 0])
     ep_range_bin_labels = pandas.Series(0, index=[
         "<12", "12-24", "25-100", "101-200", "201-500", ">500"
     ], name="index")
 
     # index to labels
-    ep_range[ep] = ep_range_bin_labels.index[numpy.digitize(ep_range[ep], ep_range_bin)]
+    ep_range[df] = ep_range_bin_labels.index[numpy.digitize(ep_range[df], ep_range_bin)]
 
-    ep_range = ep_range[ep].value_counts().rename("ep_range")
+    ep_range = ep_range[df].value_counts().rename("ep_range")
 
     extracted = pandas.merge(
         ep_range_bin_labels, ep_range, right_on=ep_range.index, left_on=ep_range_bin_labels.index, how="left",
@@ -230,7 +229,7 @@ def special_animes_report(drip: DataDrip):
 
     # RECENTLY COMPLETED MOVIE
     watched_movies = drip.source[
-        (drip.source[drip.node("media_type")] == "movie") & (drip.source[drip.list_status("status")] == "completed")]
+        (drip.source[drip.node("media_type")] == media_type["movie"]) & (drip.source[drip.list_status("status")] == "completed")]
     recently_completed_movie = None if watched_movies.empty else watched_movies.loc[
         watched_movies[updated_at].idxmax()]
     recent_movie_stamp = "" if recently_completed_movie is None else recently_completed_movie.get(updated_at)
@@ -244,6 +243,9 @@ def special_animes_report(drip: DataDrip):
             (pop_value, recent_value, rank, start_date, spent, recent_movie_stamp)
 
     ):
+        if entity is None:
+            continue
+
         required = [
             (
                 format_stamp(pandas.to_datetime(entity.get(_))) if entity.get(_, "") else "NA"
@@ -296,21 +298,21 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
     response = dict(recent=str(recent_animes.iloc[-1].id))
 
     for _status in ("Watching", "Completed", "Dropped", "Hold"):
-        sliced = anime_last_updated[anime_last_updated.status == _status]
-        if sliced.empty:
+        raw = anime_last_updated[anime_last_updated.status == _status]
+        if raw.empty:
             continue
 
-        response[_status] = dict(anime=sliced.iloc[0].to_json(orient="values"), id=str(sliced.index[0]))
+        response[_status] = dict(anime=raw.iloc[0].to_json(orient="values"), id=str(raw.index[0]))
 
     anime_id = anime_last_updated.total.idxmax()
     response["longest"] = dict(
         anime=anime_last_updated.loc[anime_id].to_json(orient="values"), id=str(anime_id)
     )
 
-    sliced = recent_animes.id.value_counts()[::-1]
-    anime_id = sliced.idxmax()
+    raw = recent_animes.id.value_counts()[::-1]
+    anime_id = raw.idxmax()
     response["many_records"] = dict(
-        mode=int(sliced.max()),
+        mode=int(raw.max()),
         anime=anime_last_updated.loc[anime_id].to_json(orient="values"),
         id=str(anime_id)
     )
