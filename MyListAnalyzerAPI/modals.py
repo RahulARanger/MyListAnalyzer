@@ -1,5 +1,6 @@
 import typing
 from dataclasses import dataclass
+from enum import Enum
 
 default_time_zone = "Asia/Tokyo"
 
@@ -18,6 +19,12 @@ class ForUserAnimeList:
     url: typing.Optional[str] = None
 
 
+class DecodeEnum(Enum):
+    @classmethod
+    def give(cls, index):
+        return cls[index].value
+
+
 ep_range_bin = [
     12, 24, 100, 200, 500
 ]
@@ -27,17 +34,9 @@ ep_range_bin = [
 bw_json_frame = "values"
 date_unit = "ms"
 
-
-rating = {
-    'g': 0,
-    "pg": 1,
-    "pg_13": 2,
-    "r": 3,
-    "r+": 4,
-    "rx": 5,
-    "-": 6
-}
-
-decode_rating = ["All", "Children", "13+", "17+", "Mild Nudity", "Hentai", "Unknown"]
-media_type = {"movie": 0, "music": 1, "ona": 2, "ova": 3, "special": 4, "tv": 5, "unknown": 6}
-decode_media_type = ["Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown"]
+rating = DecodeEnum("Rating", ("g", "pg", "pg_13", "r", "r+", "rx", "-"), start=0)
+decode_rating = "All", "Children", "13+", "17+", "Mild Nudity", "Hentai", "Unknown"
+media_type = DecodeEnum("Media Type", ("movie", "music", "ona", "ova", "special", "tv", "unknown"), start=0)
+decode_media_type = "Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown"
+list_status_enum = DecodeEnum("Status", ("completed", "watching", "dropped", "plan_to_watch", "on_hold"), start=0)
+decode_list_status = "Completed", "Watching", "Dropped", "Planned", "On Hold"

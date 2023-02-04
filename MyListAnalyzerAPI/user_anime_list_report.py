@@ -2,19 +2,21 @@ import statistics as stat
 import typing
 import numpy
 import numpy as np
+from pytz import timezone
 import pandas
-from MyListAnalyzerAPI.modals import ep_range_bin, decode_rating, decode_media_type, media_type
+from MyListAnalyzerAPI.modals import ep_range_bin, decode_rating, decode_media_type, media_type, list_status_enum, decode_list_status
 from MyListAnalyzerAPI.utils import DataDrip, format_stamp, format_rank
 
 
-def list_status(drip: DataDrip):
+def list_status(drip: DataDrip, statuses):
     status_index = drip["list_status", "status"]
     collected = pandas.DataFrame(drip.source[status_index].value_counts())
     collected["%"] = (collected.values / collected.values.sum()) * 100
+    collected.index = collected.index.map(statuses)
     return collected
 
 
-def airing_status(drip: DataDrip):
+def airing_status(drip: DataDrip, decorder: pandas.Series):
     title = drip.node("title")
     watched = drip.list_status("num_episodes_watched")
     total = drip.node("num_episodes")
@@ -32,13 +34,16 @@ def airing_status(drip: DataDrip):
 
     start_dt = \
         drip.source.loc[:, [title, picture, start_date, l_start_date, watched, total, updated_at, source, status]][
-            drip.source[state_dict] == "currently_airing"].head(10).sort_values(status)
+            drip.source[state_dict] == "currently_airing"]
 
+    total = start_dt.shape[0]
+    start_dt = start_dt.head(10).sort_values(status)
     start_dates = pandas.to_datetime(start_dt.pop(start_date))
     start_dt["day"] = start_dates.dt.day_name()
     start_dt["time"] = start_dates.dt.strftime("%H:%M")
     start_dt["date"] = format_stamp(start_dates.dt)
     start_dt[l_start_date] = format_stamp(pandas.to_datetime(start_dt[l_start_date]).dt)
+    start_dt[status] = start_dt[status].map(decorder)
 
     start_dt.to_json(orient="split")
 
@@ -46,8 +51,7 @@ def airing_status(drip: DataDrip):
     _slice = drip.source[_id][drip.source[state_dict] == "not_yet_aired"]
 
     return (
-        int(_slice.shape[0]),
-        start_dt.to_json(orient="split")
+        int(_slice.shape[0]), start_dt.to_json(orient="split"), int(total)
     )
 
 
@@ -57,10 +61,11 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
         drip.source[dates] = pandas.to_datetime(drip.source[dates])
     # D-TYPE CONVERSION COMPLETED (if required for all values)
 
-    status = list_status(drip)
+    decoder = pandas.Series(decode_list_status)
+    status = list_status(drip, decoder)
     ep_range = extract_ep_bins(drip)
 
-    not_yet_aired, animes_airing = airing_status(drip)
+    not_yet_aired, animes_airing, airing = airing_status(drip, decoder)
 
     hrs_spent = float(drip.source[drip.list_status("spent")].sum())
 
@@ -76,12 +81,14 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
 
     media_dist = drip.source[drip.node("media_type")].value_counts().convert_dtypes()  # float to int
     media_dist.index = media_dist.index.map(pandas.Series(decode_media_type))
+    watching = decode_list_status[list_status_enum.watching.value]
 
     return dict(
+        airing=airing,
         row_1=dict(
             values=[
                 int(drip.source.shape[0]),
-                int(status[drip.list_status("status")].get("watching", 0)),
+                int(status[drip.list_status("status")].get(watching, 0)),
                 not_yet_aired
             ],
             keys=["Total Animes", "Watching", "Not Yet Aired"]
@@ -90,7 +97,7 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
             [hrs_spent, "Time spent (hrs)"],
             [hrs_spent / 24, "Time spent (days)"]
         ],
-        row_2=status[status.index != "watching"].to_json(orient="split"),
+        row_2=status[status.index != watching].to_json(orient="split"),
         ep_range=ep_range.to_json(orient="index"),
         mostly_seen_genre=drip.genres[genres_mode],
         mostly_seen_studio=drip.studios[studios_mode],
@@ -132,9 +139,10 @@ def extract_ep_bins(drip: DataDrip):
 
 
 async def process_recent_animes_by_episodes(
-        recent_animes: pandas.DataFrame
+        recent_animes: pandas.DataFrame, tz: str
 ):
-    week_days, week_dist, first_record, recent_record = parse_weekly(recent_animes)
+    t_z = timezone(tz)
+    week_days, week_dist, first_record, recent_record = parse_weekly(recent_animes, t_z)
 
     grouped_by_updated_at = recent_animes.iloc[:, 3:]
 
@@ -149,7 +157,7 @@ async def process_recent_animes_by_episodes(
     )
 
 
-def parse_weekly(recent_animes: pandas.DataFrame):
+def parse_weekly(recent_animes: pandas.DataFrame, time_zone):
     sliced = recent_animes.loc[:, ["updated_at", "difference"]].groupby(
         recent_animes.updated_at.dt.day_of_week).difference.sum()
 
@@ -159,7 +167,7 @@ def parse_weekly(recent_animes: pandas.DataFrame):
     first_record = recent_animes.updated_at.min()
     recent_record = recent_animes.updated_at.max()
 
-    dist = tuple(busy_day_count(first_record.date(), (recent_record + pandas.Timedelta(days=1)).date()))
+    dist = tuple(busy_day_count(first_record.date(), (pandas.Timestamp.now(time_zone) + pandas.Timedelta(days=1)).date()))
     return dist, sliced.difference.to_json(orient="values"), first_record, recent_record
 
 
@@ -229,7 +237,9 @@ def special_animes_report(drip: DataDrip):
 
     # RECENTLY COMPLETED MOVIE
     watched_movies = drip.source[
-        (drip.source[drip.node("media_type")] == media_type["movie"]) & (drip.source[drip.list_status("status")] == "completed")]
+        (drip.source[drip.node("media_type")] == media_type.give("movie"))
+        & (drip.source[drip.list_status("status")] == list_status_enum.completed.value)
+    ]
     recently_completed_movie = None if watched_movies.empty else watched_movies.loc[
         watched_movies[updated_at].idxmax()]
     recent_movie_stamp = "" if recently_completed_movie is None else recently_completed_movie.get(updated_at)
@@ -268,7 +278,7 @@ def special_animes_report(drip: DataDrip):
         results[key] = dict(
             general=[str(entity.get(_, "")) for _ in general_parameters],
             progress=[int(entity.get(_, 0)) for _ in progress_parameters] + [
-                entity.get(drip.list_status("status"), "")],
+                decode_list_status[entity.get(drip.list_status("status"))]],
             required_parameters=required,
             special=special,
             info=info

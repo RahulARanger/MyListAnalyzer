@@ -160,7 +160,8 @@ class XMLParser:
             return False, False, False
 
         status, watched, total = parsed.groups()
-        return status, numpy.nan if total == "?" else int(total), numpy.nan if watched == "?" else int(watched)
+        # matching the status with the decoded list status of the User Anime List
+        return status if status != "Hold" else "On Hold", numpy.nan if total == "?" else int(total), numpy.nan if watched == "?" else int(watched)
 
     def gen_id(self, link_node: Tree.Element):
         link = link_node.text
