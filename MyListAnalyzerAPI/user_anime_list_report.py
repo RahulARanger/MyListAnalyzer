@@ -4,6 +4,7 @@ import numpy
 import numpy as np
 from pytz import timezone
 import pandas
+import gc
 from MyListAnalyzerAPI.modals import ep_range_bin, decode_rating, decode_media_type, media_type, list_status_enum, decode_list_status
 from MyListAnalyzerAPI.utils import DataDrip, format_stamp, format_rank
 
@@ -145,15 +146,21 @@ async def process_recent_animes_by_episodes(
     week_days, week_dist, first_record, recent_record = parse_weekly(recent_animes, t_z)
 
     grouped_by_updated_at = recent_animes.iloc[:, 3:]
+    recently_updated_day_wise = recently_updated_freq(grouped_by_updated_at, "difference")
+    del grouped_by_updated_at
 
-    recently_updated_day_wise = recently_updated_freq(
-        grouped_by_updated_at, "difference")
+    grouped_by_updated_at = recent_animes.loc[:, ["difference", "updated_at"]]
+    grouped_by_updated_at["time"] = grouped_by_updated_at["updated_at"].dt.strftime("%H:%M")
+
+    when = grouped_by_updated_at.groupby([
+        grouped_by_updated_at["updated_at"].dt.day_of_week, "time"
+    ]).sum()
 
     return dict(
         first_record=first_record.timestamp(), recent_record=recent_record.timestamp(),
         week_days=week_days, week_dist=week_dist,
         recently_updated_day_wise=recently_updated_day_wise.T.to_json(orient="split"),
-        special_results=special_results_for_recent_animes(recent_animes)
+        special_results=special_results_for_recent_animes(recent_animes), when=when.to_json(orient="split")
     )
 
 
@@ -165,10 +172,10 @@ def parse_weekly(recent_animes: pandas.DataFrame, time_zone):
     sliced = pandas.merge(weeks, sliced, left_on=weeks.index, right_on=sliced.index, how="left")
 
     first_record = recent_animes.updated_at.min()
-    recent_record = recent_animes.updated_at.max()
+    last_updated_at = recent_animes.updated_at.max()
 
     dist = tuple(busy_day_count(first_record.date(), (pandas.Timestamp.now(time_zone) + pandas.Timedelta(days=1)).date()))
-    return dist, sliced.difference.to_json(orient="values"), first_record, recent_record
+    return dist, sliced.difference.to_json(orient="values"), first_record, last_updated_at
 
 
 def recently_updated_freq(recent_animes: pandas.DataFrame, col="difference"):

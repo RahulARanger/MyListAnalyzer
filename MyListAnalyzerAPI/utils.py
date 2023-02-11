@@ -176,7 +176,7 @@ class XMLParser:
     def to_frame(cls, what_to_parse: str, time_zone: str):
         parser = XMLParser(what_to_parse)
 
-        rows = []
+        records = []
 
         for item in parser.node.find("channel").iter("item"):
             title = item.find("title").text
@@ -190,11 +190,11 @@ class XMLParser:
                 logging.warning("Failed to parse recent animes because of the record: %s, Hence Skipping it", row)
                 continue
 
-            rows.append(row)
+            records.append(row)
 
-        rows.reverse()
+        records.reverse()
 
-        frame = pandas.DataFrame(rows, columns=cls.columns)
+        frame = pandas.DataFrame(records, columns=cls.columns)
         calc_cols = iter(cls.calculated_cols)
         frame[next(calc_cols)] = frame[["id", "up_until"]].groupby("id").up_until.diff()
 
