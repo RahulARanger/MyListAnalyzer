@@ -5,28 +5,37 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.routing import Route, Mount
+from starlette.responses import JSONResponse
 
 dummy = pathlib.Path(__file__).parent / "DummyResp"
 
 
-def patched_request():
-    return json.loads((dummy / "fetchUserAnimeList.json").read_text())
+def file_to_json_resp(path):
+    return JSONResponse(content=json.loads(path.read_text()))
 
 
-def patched_request_process():
-    return json.loads((dummy / "userAnimeList.json").read_text())
+def patched_request(*_):
+    return file_to_json_resp(dummy / "fetchUserAnimeList.json")
 
 
-def patched_overview():
-    return json.loads((dummy / "overView.json").read_text())
+def patched_request_process(*_):
+    return file_to_json_resp(dummy / "userAnimeList.json")
 
 
-def patched_request_recently():
-    return json.loads((dummy / "recently.json").read_text())
+def patched_overview(*_):
+    return file_to_json_resp(dummy / "overView.json")
 
 
-def patched_validate_user():
-    return json.loads((dummy / "validateUser.json").read_text())
+def patched_request_recently(*_):
+    return file_to_json_resp(dummy / "fetchRecentAnimes.json")
+
+
+def patched_validate_user(*_):
+    return file_to_json_resp(dummy / "validateUser.json")
+
+
+def patched_recent(*_):
+    return file_to_json_resp(dummy / "recently.json")
 
 
 origins = [
@@ -34,11 +43,12 @@ origins = [
 ]
 
 main_route = Mount("/MLA", routes=[
-    Route("/Overview", patched_overview),
+    Route("/dynamic/Overview", patched_overview, methods=["POST"]),
     Route("/fetchUserAnimeList", patched_request, methods=["GET"]),
-    Route("/UserAnimeList", patched_request_process, methods=["POST"]),
-    Route("/RecentAnimeList", patched_request_recently, methods=["POST"]),
-    Route("/validateUser", patched_validate_user, methods=["GET"])
+    Route("/static/UserAnimeList", patched_request_process, methods=["POST"]),
+    Route("/static/RecentAnimeList", patched_request_recently, methods=["POST"]),
+    Route("/validateUser", patched_validate_user, methods=["GET"]),
+    Route("/dynamic/Recently", patched_recent, methods=["POST"]),
 ])
 
 app = Starlette(debug=True, routes=[main_route], middleware=[
@@ -48,4 +58,4 @@ app = Starlette(debug=True, routes=[main_route], middleware=[
 ])
 
 if __name__ == "__main__":
-    uvicorn.run("index:app", reload=True, port=6966, host="127.0.0.1", log_level="info")
+    uvicorn.run("patchedServer:app", reload=True, port=6966, host="127.0.0.1", log_level="info")

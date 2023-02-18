@@ -149,18 +149,21 @@ async def process_recent_animes_by_episodes(
     recently_updated_day_wise = recently_updated_freq(grouped_by_updated_at, "difference")
     del grouped_by_updated_at
 
-    grouped_by_updated_at = recent_animes.loc[:, ["difference", "updated_at"]]
-    grouped_by_updated_at["time"] = grouped_by_updated_at["updated_at"].dt.strftime("%H:%M")
+    # make sure to call this before adding any cols
+    special_results = special_results_for_recent_animes(recent_animes)
 
+    grouped_by_updated_at = recent_animes.loc[:, ["difference", "updated_at"]]
     when = grouped_by_updated_at.groupby([
-        grouped_by_updated_at["updated_at"].dt.day_of_week, "time"
+        grouped_by_updated_at["updated_at"].dt.day_of_week,
+        grouped_by_updated_at["updated_at"].dt.hour,
+        grouped_by_updated_at["updated_at"].dt.minute
     ]).sum()
 
     return dict(
         first_record=first_record.timestamp(), recent_record=recent_record.timestamp(),
         week_days=week_days, week_dist=week_dist,
         recently_updated_day_wise=recently_updated_day_wise.T.to_json(orient="split"),
-        special_results=special_results_for_recent_animes(recent_animes), when=when.to_json(orient="split")
+        special_results=special_results, when=when.to_json(orient="split")
     )
 
 

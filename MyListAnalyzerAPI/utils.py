@@ -217,7 +217,7 @@ class XMLParser:
 
 
 def format_stamp(date, also_for_time=False):
-    return date.strftime("%b %d, %Y" if not also_for_time else "%b %d, %Y %H:%M")
+    return "NA" if pandas.isna(date) else date.strftime("%b %d, %Y" if not also_for_time else "%b %d, %Y %H:%M")
 
 
 def format_rank(rank):
