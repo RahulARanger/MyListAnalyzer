@@ -5,7 +5,7 @@ import numpy as np
 from pytz import timezone
 import pandas
 import gc
-from MyListAnalyzerAPI.modals import ep_range_bin, decode_rating, decode_media_type, media_type, list_status_enum, decode_list_status
+from MyListAnalyzerAPI.modals import ep_range_bin, rating, media_type, list_status_enum
 from MyListAnalyzerAPI.utils import DataDrip, format_stamp, format_rank
 
 
@@ -62,7 +62,7 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
         drip.source[dates] = pandas.to_datetime(drip.source[dates])
     # D-TYPE CONVERSION COMPLETED (if required for all values)
 
-    decoder = pandas.Series(decode_list_status)
+    decoder = pandas.Series(list_status_enum.decoder)
     status = list_status(drip, decoder)
     ep_range = extract_ep_bins(drip)
 
@@ -78,11 +78,11 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
     avg_score = drip.source[score_index][drip.source[score_index] > 0].mean()
 
     rating_dist = drip.source[drip.node("rating")].value_counts().convert_dtypes()  # float to int
-    rating_dist.index = rating_dist.index.map(pandas.Series(decode_rating))
+    rating_dist.index = rating_dist.index.map(pandas.Series(rating.decoder))
 
     media_dist = drip.source[drip.node("media_type")].value_counts().convert_dtypes()  # float to int
-    media_dist.index = media_dist.index.map(pandas.Series(decode_media_type))
-    watching = decode_list_status[list_status_enum.watching.value]
+    media_dist.index = media_dist.index.map(pandas.Series(media_type.decoder))
+    watching = list_status_enum.decoder[list_status_enum.encoder.watching.value]
 
     return dict(
         airing=airing,
@@ -248,7 +248,7 @@ def special_animes_report(drip: DataDrip):
     # RECENTLY COMPLETED MOVIE
     watched_movies = drip.source[
         (drip.source[drip.node("media_type")] == media_type.give("movie"))
-        & (drip.source[drip.list_status("status")] == list_status_enum.completed.value)
+        & (drip.source[drip.list_status("status")] == list_status_enum.encoder.completed.value)
     ]
     recently_completed_movie = None if watched_movies.empty else watched_movies.loc[
         watched_movies[updated_at].idxmax()]
@@ -288,7 +288,7 @@ def special_animes_report(drip: DataDrip):
         results[key] = dict(
             general=[str(entity.get(_, "")) for _ in general_parameters],
             progress=[int(entity.get(_, 0)) for _ in progress_parameters] + [
-                decode_list_status[entity.get(drip.list_status("status"))]],
+                list_status_enum.decoder[entity.get(drip.list_status("status"))]],
             required_parameters=required,
             special=special,
             info=info
@@ -313,8 +313,8 @@ def busy_day_count(start_date, end_date) -> typing.List[int]:
 
 
 def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
-    anime_first_updated = recent_animes.groupby("id").first()
-    anime_last_updated = recent_animes.groupby("id").last()
+    anime_first_updated = recent_animes.groupby("id").first().sort_values("updated_at")
+    anime_last_updated = recent_animes.groupby("id").last().sort_values("updated_at")
     response = dict(recent=str(recent_animes.iloc[-1].id))
 
     for _status in ("Watching", "Completed", "Dropped", "Hold"):
@@ -322,7 +322,7 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
         if raw.empty:
             continue
 
-        response[_status] = dict(anime=raw.iloc[0].to_json(orient="values"), id=str(raw.index[0]))
+        response[_status] = dict(anime=raw.iloc[-1].to_json(orient="values"), id=str(raw.index[-1]))
 
     anime_id = anime_last_updated.total.idxmax()
     response["longest"] = dict(
@@ -337,7 +337,7 @@ def special_results_for_recent_animes(recent_animes: pandas.DataFrame):
         id=str(anime_id)
     )
 
-    # recent animes index is not ID
+    # recent anime's index is not ID
     record = recent_animes.iloc[recent_animes.difference[::-1].idxmax()]
     response["most_updated"] = record.to_json(orient="values")
 

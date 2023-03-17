@@ -34,9 +34,35 @@ ep_range_bin = [
 bw_json_frame = "values"
 date_unit = "ms"
 
-rating = DecodeEnum("Rating", ("g", "pg", "pg_13", "r", "r+", "rx", "-"), start=0)
-decode_rating = "All", "Children", "13+", "17+", "Mild Nudity", "Hentai", "Unknown"
-media_type = DecodeEnum("Media Type", ("movie", "music", "ona", "ova", "special", "tv", "unknown"), start=0)
-decode_media_type = "Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown"
-list_status_enum = DecodeEnum("Status", ("completed", "watching", "dropped", "plan_to_watch", "on_hold"), start=0)
-decode_list_status = "Completed", "Watching", "Dropped", "Planned", "On Hold"
+
+class ENumber:
+    def __init__(self, encoder, decoder: typing.Sequence[typing.Union[str, int]]):
+        """
+
+        :param encoder: Encodes the String to a Number so the data send to the UI is lightweight
+        :param decoder: decodes the Number to string. so user can understand
+        """
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def give(self, index):
+        return self.decoder[self.take(index)]
+
+    def take(self, index):
+        return getattr(self.encoder, index).value
+
+
+rating = ENumber(
+    Enum("Rating", ("g", "pg", "pg_13", "r", "r+", "rx", "-"), start=0),
+    ("All", "Children", "13+", "17+", "Mild Nudity", "Hentai", "Unknown")
+)
+
+media_type = ENumber(
+    Enum("Media Type", ("movie", "music", "ona", "ova", "special", "tv", "unknown"), start=0),
+    ("Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown")
+)
+
+list_status_enum = ENumber(
+    Enum("Status", ("completed", "watching", "dropped", "plan_to_watch", "on_hold"), start=0),
+    ("Completed", "Watching", "Dropped", "Planned", "On Hold")
+)

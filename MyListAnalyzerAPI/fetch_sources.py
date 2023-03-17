@@ -59,8 +59,8 @@ class MALSession(httpx.AsyncClient):
         for row in _raw:
             row["node"].get("main_picture", dict(medium="")).pop("medium")
             row["node"].get("broadcast", dict(day_of_the_week="")).pop("day_of_the_week")
-            row["node"]["rating"] = rating.give(row["node"].get("rating", "-"))
-            row["node"]["media_type"] = media_type.give(row["node"].get("media_type", "unknown"))
-            row["list_status"]["status"] = list_status_enum.give(row["list_status"].get("status"))
+            row["node"]["rating"] = rating.take(row["node"].get("rating", "-"))
+            row["node"]["media_type"] = media_type.take(row["node"].get("media_type", "unknown"))
+            row["list_status"]["status"] = list_status_enum.take(row["list_status"].get("status"))
 
         return dict(raw=_raw, next_page=next_page, user_name=user_name)

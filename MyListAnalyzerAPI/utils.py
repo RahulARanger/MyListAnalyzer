@@ -6,7 +6,7 @@ from datetime import datetime
 import numpy
 import pandas
 from pytz import timezone
-from MyListAnalyzerAPI.modals import bw_json_frame, default_time_zone
+from MyListAnalyzerAPI.modals import bw_json_frame, default_time_zone, list_status_enum
 
 
 def flat_me(bulge, safe):
@@ -177,14 +177,18 @@ class XMLParser:
         parser = XMLParser(what_to_parse)
 
         records = []
+        some_known = {
+            "On Hold": list_status_enum.give("on_hold"),
+            "Plan to Watch": list_status_enum.give("plan_to_watch")
+        }
 
         for item in parser.node.find("channel").iter("item"):
             title = item.find("title").text
-            desc = parser.parse_desc(item.find("description"))
+            status, *desc = parser.parse_desc(item.find("description"))
             anime_id = parser.gen_id(item.find("link"))
             time_stamp = parser.pub_date_to_datetime(item.find("pubDate").text, time_zone)
 
-            row = (anime_id, title, *desc, time_stamp)
+            row = (anime_id, title, some_known.get(status, status), *desc, time_stamp)
 
             if not all(row):
                 logging.warning("Failed to parse recent animes because of the record: %s, Hence Skipping it", row)
