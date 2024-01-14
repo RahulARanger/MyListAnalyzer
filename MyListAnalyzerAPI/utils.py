@@ -1,3 +1,4 @@
+import io
 import logging
 import re
 import typing
@@ -66,7 +67,7 @@ class DataDrip:
     @classmethod
     def from_raw(cls, raw: dict):
         return DataDrip(
-            pandas.read_json(raw.get("data", ""), orient=cls.orient),
+            pandas.read_json(io.StringIO(raw.get("data", "")), orient=cls.orient),
             raw.get("genres", None),
             raw.get("studios", None)
         )
@@ -212,7 +213,7 @@ class XMLParser:
 
     @classmethod
     def from_raw(cls, raw, time_zone) -> typing.Union[bool, pandas.DataFrame]:
-        frame = pandas.read_json(raw, orient=bw_json_frame)
+        frame = pandas.read_json(io.StringIO(raw), orient=bw_json_frame)
         if frame.empty:
             return False
         frame.columns = cls.columns + cls.calculated_cols

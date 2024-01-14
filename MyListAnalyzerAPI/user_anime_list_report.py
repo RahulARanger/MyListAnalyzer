@@ -154,7 +154,7 @@ async def process_recent_animes_by_episodes(
     special_results = special_results_for_recent_animes(recent_animes)
 
     grouped_by_updated_at = recent_animes.loc[:, ["difference", "updated_at"]]
-    when = grouped_by_updated_at.groupby([
+    when = grouped_by_updated_at.mode(numeric_only=True).groupby([
         grouped_by_updated_at["updated_at"].dt.day_of_week,
         grouped_by_updated_at["updated_at"].dt.hour,
         grouped_by_updated_at["updated_at"].dt.minute
@@ -305,7 +305,7 @@ def busy_day_count(start_date, end_date) -> typing.List[int]:
     :param end_date: end_date is excluded
     :return:
     """
-    weeks = numpy.zeros(7)
+    weeks = numpy.zeros(7, dtype=int)
 
     for index in range(weeks.size):
         weeks[index] += 1
