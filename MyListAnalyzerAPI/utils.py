@@ -7,7 +7,7 @@ from datetime import datetime
 import numpy
 import pandas
 from pytz import timezone
-from api.modals import bw_json_frame, default_time_zone, list_status_enum
+from MyListAnalyzerAPI.modals import bw_json_frame, default_time_zone, list_status_enum
 
 
 def flat_me(bulge, safe):

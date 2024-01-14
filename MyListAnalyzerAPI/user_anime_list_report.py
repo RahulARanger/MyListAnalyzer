@@ -5,8 +5,8 @@ import numpy as np
 from pytz import timezone
 import pandas
 import gc
-from api.modals import ep_range_bin, rating, media_type, list_status_enum
-from api.utils import DataDrip, format_stamp, format_rank
+from MyListAnalyzerAPI.modals import ep_range_bin, rating, media_type, list_status_enum
+from MyListAnalyzerAPI.utils import DataDrip, format_stamp, format_rank
 
 
 def list_status(drip: DataDrip, statuses):

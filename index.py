@@ -3,7 +3,7 @@ from starlette.routing import Route
 from starlette.responses import PlainTextResponse
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from api.routes import my_list_analyzer
+from MyListAnalyzerAPI.routes import my_list_analyzer
 import uvicorn
 import logging
 from dotenv import load_dotenv

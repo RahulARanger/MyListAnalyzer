@@ -1,6 +1,6 @@
 import os
 import httpx
-from api.modals import rating, media_type, list_status_enum
+from MyListAnalyzerAPI.modals import rating, media_type, list_status_enum
 
 
 class MALSession(httpx.AsyncClient):

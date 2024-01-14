@@ -1,12 +1,12 @@
 import logging
-from api.modals import ProcessUserDetails
-from api.user_anime_list_report import report_gen as general_report, process_recent_animes_by_episodes
-from api.utils import DataDrip, bw_json_frame
+from MyListAnalyzerAPI.modals import ProcessUserDetails
+from MyListAnalyzerAPI.user_anime_list_report import report_gen as general_report, process_recent_animes_by_episodes
+from MyListAnalyzerAPI.utils import DataDrip, bw_json_frame
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.requests import Request
 import typing
 import httpx
-from api.utils import XMLParser
+from MyListAnalyzerAPI.utils import XMLParser
 
 ROUTES = dict(Overview=general_report, Recently=process_recent_animes_by_episodes)
 

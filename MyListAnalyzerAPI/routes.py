@@ -4,9 +4,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 
-from api.fetch_sources import MALSession
-from api.modals import ForUserAnimeList
-from api.parse_user_anime_list import give_over_view, generate_report_for_recent_animes, \
+from MyListAnalyzerAPI.fetch_sources import MALSession
+from MyListAnalyzerAPI.modals import ForUserAnimeList
+from MyListAnalyzerAPI.parse_user_anime_list import give_over_view, generate_report_for_recent_animes, \
     parse_user_anime_list, fetch_recent_animes
 
 
