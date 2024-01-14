@@ -126,7 +126,8 @@ class DataDrip:
                 continue
 
             try:
-                b_date, b_time = datetime.strptime(from_jst, "%Y-%m-%d").date(), datetime.strptime(_time, "%H:%M").time()
+                b_date, b_time = datetime.strptime(from_jst, "%Y-%m-%d").date(), datetime.strptime(_time,
+                                                                                                   "%H:%M").time()
             except ValueError:
                 # MOSTLY BECAUSE OF THE YET TO AIR ANIMES (since they are of form: year-month (2023-04)
                 results.append(from_jst)
@@ -162,7 +163,8 @@ class XMLParser:
 
         status, watched, total = parsed.groups()
         # matching the status with the decoded list status of the User Anime List
-        return status if status != "Hold" else "On Hold", numpy.nan if total == "?" else int(total), numpy.nan if watched == "?" else int(watched)
+        return status if status != "Hold" else "On Hold", numpy.nan if total == "?" else int(
+            total), numpy.nan if watched == "?" else int(watched)
 
     def gen_id(self, link_node: Tree.Element):
         link = link_node.text
@@ -221,7 +223,7 @@ class XMLParser:
         return frame
 
 
-def format_stamp(date, also_for_time=False):
+def format_stamp(date, also_for_time: bool = False):
     return "NA" if pandas.isna(date) else date.strftime("%b %d, %Y" if not also_for_time else "%b %d, %Y %H:%M")
 
 
