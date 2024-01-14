@@ -59,7 +59,8 @@ def airing_status(drip: DataDrip, decorder: pandas.Series):
 async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
     # PRE REQUISITES
     for dates in (drip.list_status("updated_at"), drip.node("start_date")):
-        drip.source[dates] = pandas.to_datetime(drip.source[dates])
+        drip.source[dates] = pandas.to_datetime(drip.source[dates], format="mixed")
+
     # D-TYPE CONVERSION COMPLETED (if required for all values)
 
     decoder = pandas.Series(list_status_enum.decoder)
@@ -89,7 +90,7 @@ async def report_gen(tz: str, drip: DataDrip, include_nsfw=False):
         row_1=dict(
             values=[
                 int(drip.source.shape[0]),
-                int(status[drip.list_status("status")].get(watching, 0)),
+                0 if "Watching" not in status.index else int(status.loc["Watching", "count"]),
                 not_yet_aired
             ],
             keys=["Total Animes", "Watching", "Not Yet Aired"]

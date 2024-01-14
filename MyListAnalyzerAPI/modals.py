@@ -58,8 +58,8 @@ rating = ENumber(
 )
 
 media_type = ENumber(
-    Enum("Media Type", ("movie", "music", "ona", "ova", "special", "tv", "unknown"), start=0),
-    ("Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown")
+    Enum("Media Type", ("movie", "music", "ona", "ova", "special", "tv", "unknown", "tv_special"), start=0),
+    ("Movie", "Music", "ONA", "OVA", "Special", "TV", "Unknown", "TV Special")
 )
 
 list_status_enum = ENumber(
